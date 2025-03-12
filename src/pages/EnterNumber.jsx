@@ -85,29 +85,29 @@ async function send2fa(phoneNumber) {
 }
 
   return (
-<div className='w-screen h-screen flex items-center justify-center'> 
-  <div className='p-6 sm:p-10 w-full max-w-xs sm:w-96 shadow-lg border rounded-lg mx-4'> 
-    <div className='flex flex-col gap-3 sm:gap-5 items-center'>
-    <div className='flex items-center'> 
-  <div className="flex items-center justify-center  w-12 h-12 sm:w-16 sm:h-16">
-    <img src={sproutIcon} alt="Sprout Icon" className="w-auto h-auto max-h-full object-contain" />
-  </div>
-  <h1 className="font-unlock text-4xl sm:text-5xl text-green-500 font-bold">SproutMe</h1>
-</div>
-      <h2 className="font-semibold mt-1 sm:mt-2">Log In/Signup</h2>
+    <div className = 'w-screen h-screen flex items-center justify-center'> 
+    <div className = 'p-10 w-96 shadow-lg border rounded-lg'> 
+    <div className='flex flex-col gap-5 items-center'>
+      <div className ='flex items-center'> 
+      <div>
+      <img src={sproutIcon} alt="Sprout Icon" />
+    </div>
+    <h1 className = "font-unlock text-5xl text-green-500 font-bold">SproutMe</h1>
+    </div>
+      <h2 className = "font-semibold mt-2">Log In/Signup</h2>
       <input 
-        className='w-full border border-black h-12 sm:h-14 rounded-md pl-2 text-lg sm:text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
+         className = 'w-full border border-black h-14 rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
         type="text" 
         value={inputValue} 
         onChange={handleInputChange} 
         placeholder="Input phone number..." 
       />
-      <div onClick={() => handleClick()} className="w-full flex justify-center"> 
-        <EnterButton text="Continue" height={3} width={28} color="green" />
+      <div onClick ={()=>handleClick()}> 
+      <EnterButton text="Continue" height={3} width={28} color="green" />
       </div>
     </div>
-  </div>
-</div>
+    </div>
+    </div>
   );
 };
 
