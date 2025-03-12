@@ -87,14 +87,14 @@ async function send2fa(phoneNumber) {
   return (
     <div className = 'w-screen h-screen flex items-center justify-center'> 
     <div className = 'p-10 w-96 shadow-lg border rounded-lg'> 
-    <div className='flex flex-col gap-5 font-unlock items-center'>
+    <div className='flex flex-col gap-5 items-center'>
       <div className ='flex items-center'> 
       <div>
       <img src={sproutIcon} alt="Sprout Icon" />
     </div>
     <h1 className = "font-unlock text-5xl text-green-500 font-bold">SproutMe</h1>
     </div>
-      <h2 className = "font-unlock font-semibold mt-2">Log In/Signup</h2>
+      <h2 className = "font-semibold mt-2">Log In/Signup</h2>
       <input 
          className = 'w-full border border-black h-14 rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
         type="text" 

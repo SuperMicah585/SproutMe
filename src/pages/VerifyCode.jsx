@@ -91,8 +91,8 @@ const VerifyCode = () => {
   return (
     <div className='w-screen h-screen flex items-center justify-center'> 
       <div className='p-10 w-96 shadow-lg border rounded-lg'> 
-        <div className='flex flex-col gap-5 font-unlock items-center'>
-          <h2 className="font-unlock font-semibold mt-2">Verify the Code Sent to</h2>
+        <div className='flex flex-col gap-5 items-center'>
+          <h2 className="font-semibold mt-2">Verify the Code Sent to</h2>
           <p className="text-green-500 font-bold">{phoneNumber}</p> {/* Display the phone number */}
           <input 
             className='w-full border border-black h-14 rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
