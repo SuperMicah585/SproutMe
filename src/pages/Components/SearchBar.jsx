@@ -30,12 +30,12 @@ const SearchBar = ({ options, onSelect, placeholder }) => {
           onChange={handleSearch}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setTimeout(() => setIsFocused(false), 100)}
-          className="border border-green-300 p-2 pl-10 w-full rounded-md focus:outline-none focus:border-green-500 bg-white"
+          className="border border-green-300 p-2 pl-10 w-full rounded-md focus:outline-none focus:border-green-500 text-black bg-white"
         />
       </div>
       
       {query && filteredOptions.length > 0 && (
-        <div className="absolute bg-white border border-green-200 w-full mt-1 z-10 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute bg-white border border-green-200 w-full mt-1 z-10 rounded-md shadow-lg text-black max-h-60 overflow-y-auto">
           {filteredOptions.map((option, index) => (
             <div
               key={index}
