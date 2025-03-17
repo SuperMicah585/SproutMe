@@ -142,8 +142,11 @@ const Dashboard = () => {
     }
   }
 
-
-
+  const handleEventsClick = () => {
+    // Open a new window with the events page
+    const url = `/events/${encodeURIComponent(phoneNumber)}`;
+    window.open(url, "_blank"); // "_blank" opens the URL in a new tab/window
+  };
 
   async function updateCitiesForUser() {
     if (!phoneNumber || phoneNumber === "Unknown Number") return;
@@ -178,11 +181,19 @@ const Dashboard = () => {
 
   return (
     <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6">
+    <div onClick={handleEventsClick} className="absolute left-1 top-1 z-25">
+      <EnterButton
+        text="View Events"
+        height={1} // Ensure this is the correct type (number or string)
+        width={3} // Ensure this is the correct type (number or string)
+        color="green"
+      />
+    </div>
       <div onClick={handleLogoutClick} className="absolute right-1 top-1">
         <EnterButton text="logout" height={1} width={2} color="green" />
       </div>
       <div className="text-4xl font-bold text-green-600 mb-2 mt-6">Add Genres and Cities</div>
-      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact texts sent to ${phoneNumber}`}</div>
+      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact events for ${phoneNumber}`}</div>
       
       <div className="flex flex-col lg:flex-row gap-8 w-full max-w-5xl px-4">
         {/* Genres Section */}
