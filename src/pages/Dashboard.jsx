@@ -200,7 +200,7 @@ const Dashboard = () => {
         <div className="w-full lg:w-1/2 bg-white p-6 rounded-xl shadow-lg border-2 border-green-200 transition-all hover:shadow-xl">
           <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center">
             <span className="inline-block w-2 h-6 bg-green-500 rounded mr-2"></span>
-            Genres to get Notifications
+            Genres to Filter
           </h3>
           
           <SearchBar 
@@ -233,7 +233,7 @@ const Dashboard = () => {
         <div className="w-full lg:w-1/2 bg-white p-6 rounded-xl shadow-lg border-2 border-green-200 transition-all hover:shadow-xl">
           <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center">
             <span className="inline-block w-2 h-6 bg-green-500 rounded mr-2"></span>
-            Cities to get Notifications
+            Cities to Filter
           </h3>
           
           <SearchBar 
