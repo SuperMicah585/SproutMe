@@ -68,51 +68,52 @@ const EventsPage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {events.map((event, index) => (
-              <div
+            <div
                 key={index}
                 className="bg-white p-6 rounded-xl shadow-lg border-2 border-green-200 transition-all hover:shadow-xl hover:border-green-400"
-              >
-                <h3 className="font-bold text-xl text-gray-800 mb-3">{event.event_name}</h3>
+            >
+                <h3 className="font-bold text-xl text-gray-800 mb-3">{event.event_name.trim()}</h3>
                 
                 <div className="space-y-2 mb-4">
-                  <div className="flex">
+                <div className="flex">
                     <span className="font-medium text-gray-600 w-24">Date:</span>
-                    <span className="text-gray-800">{event.date}</span>
-                  </div>
-                  
-                  <div className="flex">
+                    <span className="text-gray-800">{event.date.trim()}</span>
+                </div>
+                
+                <div className="flex">
                     <span className="font-medium text-gray-600 w-24">Venue:</span>
-                    <span className="text-gray-800">{event.venue}</span>
-                  </div>
-                  
-                  <div className="flex">
+                    <span className="text-gray-800">{event.venue.trim()}</span>
+                </div>
+                
+                <div className="flex">
                     <span className="font-medium text-gray-600 w-24">Genre:</span>
-                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-md text-sm">{event.genre}</span>
-                  </div>
+                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-md text-sm">{event.genre.trim()}</span>
+                </div>
 
-                  <div className="flex">
+                <div className="flex">
                     <span className="font-medium text-gray-600 w-24">Tickets:</span>
-                    <span className="text-gray-800">{event.ticket_info}</span>
-                  </div>
+                    <span className="text-gray-800">{event.ticket_info.trim()}</span>
+                </div>
 
-                  <div className="flex">
+                <div className="flex">
                     <span className="font-medium text-gray-600 w-24">Organizer:</span>
-                    <span className="text-gray-800">{event.organizer}</span>
-                  </div>
+                    <span className="text-gray-800">{event.organizer.trim()}</span>
+                </div>
                 </div>
                 
                 {event.event_link_url && (
-                  <a
-                    href={event.event_url}
+                <a
+                    href={event.event_url.trim()}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg transition-colors mt-4"
-                  >
+                >
                     View Event
-                  </a>
+                </a>
                 )}
-              </div>
+            </div>
             ))}
+
           </div>
         )}
       </div>
