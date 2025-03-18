@@ -161,7 +161,7 @@ const Dashboard = () => {
     const phoneHash = await hashPhoneNumber(phoneNumber);
 
     // Open a new window with the events page using the hash
-    const url = `/events/${encodeURIComponent(phoneHash)}`;
+    const url = `https://sproutme-production.up.railway.app/events/${encodeURIComponent(phoneHash)}`;
     window.open(url, "_blank"); // "_blank" opens the URL in a new tab/window
   };
 
