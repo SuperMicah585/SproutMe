@@ -226,7 +226,7 @@ const Dashboard = () => {
         <EnterButton text="logout" height={1} width={2} color="green" />
       </div>
       <div className="text-4xl font-bold text-green-600 mb-2 mt-6">Add Genres and Cities</div>
-      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact events for ${name}`}</div>
+      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact your upcoming events`}</div>
       
       <div className="flex flex-col lg:flex-row gap-8 w-full max-w-5xl px-4">
         {/* Genres Section */}
