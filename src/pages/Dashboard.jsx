@@ -157,13 +157,16 @@ const Dashboard = () => {
   }
 
   const handleEventsClick = async () => {
-    // Hash the phone number
     const phoneHash = await hashPhoneNumber(phoneNumber);
-
-    // Open a new window with the events page using the hash
     const url = `/events/${encodeURIComponent(phoneHash)}`;
-    window.open(url, "_blank"); // "_blank" opens the URL in a new tab/window
+    const newWindow = window.open(url, "_blank");
+  
+    // Fallback if the pop-up is blocked
+    if (!newWindow) {
+      window.location.href = url; // Navigate in the same tab if the pop-up is blocked
+    }
   };
+  
 
   async function updateCitiesForUser() {
     if (!phoneNumber || phoneNumber === "Unknown Number") return;
@@ -197,14 +200,21 @@ const Dashboard = () => {
 
   return (
     <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6">
-    <div onClick={handleEventsClick} className="absolute left-1 top-1 z-25">
+    <div 
+      onClick={handleEventsClick} 
+      className="absolute left-1 top-1 z-25" 
+      role="button" 
+      tabIndex={0} 
+      style={{ cursor: 'pointer' }}
+    >
       <EnterButton
         text="View Events"
-        height={1} // Ensure this is the correct type (number or string)
-        width={3} // Ensure this is the correct type (number or string)
+        height={1} 
+        width={3} 
         color="green"
       />
     </div>
+
       <div onClick={handleLogoutClick} className="absolute right-1 top-1">
         <EnterButton text="logout" height={1} width={2} color="green" />
       </div>
