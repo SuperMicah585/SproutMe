@@ -11,7 +11,7 @@ const Dashboard = () => {
   const [genreArray, setGenreArray] = useState([]);
   const [cityArray, setCityArray] = useState([]);
   const [name,setName] = useState("")
-  
+  const [hashedPhone, setHashedPhone] = useState(''); // State to store the hashed phone number
   // Add refs to track changes rather than initial renders
   const initialRender = useRef(true);
   const genreChanged = useRef(false);
@@ -113,7 +113,6 @@ const Dashboard = () => {
         }
 
         const data = await response.json();
-        console.log(data)
         setGenreArray(data.data.genre_list)
         setCityArray(data.data.city_list)
         setName(data.data.name)
@@ -157,12 +156,27 @@ const Dashboard = () => {
   }
 
   const handleEventsClick = async (event) => {
-    event.preventDefault();  // Prevent default behavior if necessary
-    const phoneHash = await hashPhoneNumber(phoneNumber);
-    const url = `https://sproutme-production.up.railway.app/events/${encodeURIComponent(phoneHash)}`;
+    const url = `https://sproutme-production.up.railway.app/events/${encodeURIComponent(hashedPhone)}`;
     window.open(url, "_blank");
   };
   
+  useEffect(() => {
+    // Define an async function inside useEffect
+    const updateHashedPhone = async () => {
+      if (phoneNumber) {
+        try {
+          const phoneHash = await hashPhoneNumber(phoneNumber); // Hash the phone number
+          setHashedPhone(phoneHash); // Update the state with the hashed phone number
+        } catch (error) {
+          console.error("Error hashing phone number:", error);
+        }
+      }
+    };
+
+    updateHashedPhone(); // Call the async function
+
+  }, [phoneNumber]); // This effect runs whenever phoneNumber changes
+
 
   async function updateCitiesForUser() {
     if (!phoneNumber || phoneNumber === "Unknown Number") return;
