@@ -96,7 +96,7 @@ async function send2fa(phoneNumber) {
     </div>
       <h2 className = "font-semibold mt-2">Log In/Signup</h2>
       <input 
-         className = 'w-full border border-black h-14 rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
+         className = 'w-full border border-black h-14 rounded-md pl-2 text-xl font-light bg-white text-black focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
         type="text" 
         value={inputValue} 
         onChange={handleInputChange} 

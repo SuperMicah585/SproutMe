@@ -66,9 +66,9 @@ const NewUserPage = () => {
             </div>
             <h1 className="font-unlock text-5xl text-green-500 font-bold">SproutMe</h1>
           </div>
-          <h2 className="font-semibold mt-2">Welcome! Please Enter Your Name</h2>
+          <h2 className="font-semibold mt-2 text-black">Welcome! Please Enter Your Name</h2>
           <input
-            className="w-full border border-black h-14 rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-black h-14 bg-white text-black rounded-md pl-2 text-xl font-light focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
             type="text"
             value={inputValue}
             onChange={handleInputChange}
