@@ -199,7 +199,7 @@ const Dashboard = () => {
     <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6">
     <div 
       onClick={handleEventsClick} 
-      className="absolute left-1 top-1" 
+      className="absolute right-10 top-5 z-10" 
     >
       <EnterButton
         text="View Events"
@@ -209,7 +209,7 @@ const Dashboard = () => {
       />
     </div>
 
-      <div onClick={handleLogoutClick} className="absolute right-10 top-5 z-10">
+      <div onClick={handleLogoutClick} className="absolute right-1 top-1">
         <EnterButton text="logout" height={1} width={2} color="green" />
       </div>
       <div className="text-4xl font-bold text-green-600 mb-2 mt-6">Add Genres and Cities</div>
