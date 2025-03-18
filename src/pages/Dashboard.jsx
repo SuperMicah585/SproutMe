@@ -156,14 +156,13 @@ const Dashboard = () => {
     }
   }
 
-  const handleEventsClick = async () => {
-    // Hash the phone number
+  const handleEventsClick = async (event) => {
+    event.preventDefault();  // Prevent default behavior if necessary
     const phoneHash = await hashPhoneNumber(phoneNumber);
-
-    // Open a new window with the events page using the hash
     const url = `https://sproutme-production.up.railway.app/events/${encodeURIComponent(phoneHash)}`;
-    window.open(url, "_blank"); // "_blank" opens the URL in a new tab/window
+    window.open(url, "_blank");
   };
+  
 
   async function updateCitiesForUser() {
     if (!phoneNumber || phoneNumber === "Unknown Number") return;
@@ -199,7 +198,7 @@ const Dashboard = () => {
     <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6">
     <div 
       onClick={handleEventsClick} 
-      className="absolute right-10 top-5 z-10" 
+      className="absolute left-1 top-1" 
     >
       <EnterButton
         text="View Events"
