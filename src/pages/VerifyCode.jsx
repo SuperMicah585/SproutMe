@@ -53,7 +53,6 @@ const VerifyCode = () => {
         }
   
         const data = await response.json();
-        console.log("Response:", data);
         return data;
     } catch (error) {
         console.error("Error validating phone number:", error);
@@ -72,24 +71,53 @@ const VerifyCode = () => {
       const response = await sendCode(inputValue);
   
       if (response.valid) {
-        const createUserIfNeeded = await createUser(phoneNumber)
-        console.log("user",createUserIfNeeded)
-        if(createUserIfNeeded.success){
-        navigate("/dashboard", { state: { phoneNumber: response.phone_number } });
-        }
-        else{
-          toast.error("something went wrong")
+        const createUserIfNeeded = await createUser(phoneNumber);
+        console.log("user", createUserIfNeeded);
+  
+        if (createUserIfNeeded.success) {
+          // Construct the URL for the new check_user endpoint
+          const url = `${apiUrl}/check_user`;
+          console.log(url);
+  
+          // Fetch data from the Flask endpoint to check the user
+          const checkUserResponse = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ phone_number: phoneNumber }),
+          });
+  
+          const checkUserData = await checkUserResponse.json();
+  
+          if (checkUserData.success) {
+            // Check the user data's name field to navigate accordingly
+            if (checkUserData.data && checkUserData.data.name === null) {
+              // If name is null, navigate to the NewUserPage
+              navigate("/new-user", { state: { phoneNumber: phoneNumber } });
+            } else {
+              // If name is not null, navigate to the dashboard
+              navigate("/dashboard", { state: { phoneNumber: phoneNumber } });
+            }
+          } else {
+            // Handle failure in checking the user name
+            toast.error("Failed to check user name");
+          }
+        } else {
+          toast.error("Something went wrong");
         }
       } else {
-        toast.success('Valid Code!');
+        toast.success("Valid Code!");
       }
     } catch (error) {
-      toast.error('Please enter a valid code');
+      toast.error("Please enter a valid code");
     }
   };
   
+
+
   return (
-    <div className='w-screen h-screen flex items-center justify-center'> 
+    <div className='w-screen h-screen flex items-center justify-center bg-white'> 
       <div className='p-10 w-96 shadow-lg border rounded-lg'> 
         <div className='flex flex-col gap-5 items-center'>
           <h2 className="font-semibold mt-2">Verify the Code Sent to</h2>

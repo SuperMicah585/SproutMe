@@ -85,7 +85,7 @@ async function send2fa(phoneNumber) {
 }
 
   return (
-    <div className = 'w-screen h-screen flex items-center justify-center'> 
+    <div className = 'w-screen h-screen flex items-center justify-center bg-white'> 
     <div className = 'p-10 w-96 shadow-lg border rounded-lg'> 
     <div className='flex flex-col gap-5 items-center'>
       <div className ='flex items-center'> 

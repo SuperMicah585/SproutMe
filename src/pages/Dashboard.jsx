@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import EnterButton from "./Components/EnterButton"
 import { useNavigate, useLocation } from "react-router-dom";
 import { genres, cities } from "./Components/searchData";
-
 const Dashboard = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
   const navigate = useNavigate();
@@ -11,6 +10,7 @@ const Dashboard = () => {
   const phoneNumber = location.state?.phoneNumber || "Unknown Number";
   const [genreArray, setGenreArray] = useState([]);
   const [cityArray, setCityArray] = useState([]);
+  const [name,setName] = useState("")
   
   // Add refs to track changes rather than initial renders
   const initialRender = useRef(true);
@@ -37,6 +37,19 @@ const Dashboard = () => {
 
   const handleLogoutClick = () => {
     navigate("/");
+  };
+
+  const hashPhoneNumber = async (phoneNumber) => {
+    // Convert the phone number to an ArrayBuffer
+    const encoder = new TextEncoder();
+    const data = encoder.encode(phoneNumber);
+    
+    // Hash the data using SHA-256
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    
+    // Convert the hash to a hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   // Set initial render to false after component mounts
@@ -100,8 +113,10 @@ const Dashboard = () => {
         }
 
         const data = await response.json();
+        console.log(data)
         setGenreArray(data.data.genre_list)
         setCityArray(data.data.city_list)
+        setName(data.data.name)
         return data;
     } catch (error) {
         console.error("Error getting user data:", error);
@@ -134,7 +149,6 @@ const Dashboard = () => {
       }
   
       const data = await response.json();
-      console.log("Genre update response:", data);
       return data;
     } catch (error) {
       console.error("Error updating genres:", error);
@@ -142,9 +156,12 @@ const Dashboard = () => {
     }
   }
 
-  const handleEventsClick = () => {
-    // Open a new window with the events page
-    const url = `/events/${encodeURIComponent(phoneNumber)}`;
+  const handleEventsClick = async () => {
+    // Hash the phone number
+    const phoneHash = await hashPhoneNumber(phoneNumber);
+
+    // Open a new window with the events page using the hash
+    const url = `/events/${encodeURIComponent(phoneHash)}`;
     window.open(url, "_blank"); // "_blank" opens the URL in a new tab/window
   };
 
@@ -152,7 +169,7 @@ const Dashboard = () => {
     if (!phoneNumber || phoneNumber === "Unknown Number") return;
     
     const url = `${apiUrl}/user/cities`;
-    console.log(cityArray)
+
     try {
       const response = await fetch(url, {
         method: "PUT",
@@ -171,7 +188,6 @@ const Dashboard = () => {
       }
   
       const data = await response.json();
-      console.log("City update response:", data);
       return data;
     } catch (error) {
       console.error("Error updating cities:", error);
@@ -193,7 +209,7 @@ const Dashboard = () => {
         <EnterButton text="logout" height={1} width={2} color="green" />
       </div>
       <div className="text-4xl font-bold text-green-600 mb-2 mt-6">Add Genres and Cities</div>
-      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact events for ${phoneNumber}`}</div>
+      <div className="text-xl font-medium text-gray-700 mb-8">{`Changes will impact events for ${name}`}</div>
       
       <div className="flex flex-col lg:flex-row gap-8 w-full max-w-5xl px-4">
         {/* Genres Section */}

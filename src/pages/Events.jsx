@@ -1,30 +1,55 @@
 import { useState, useEffect } from "react";
-import {useParams } from "react-router-dom";
-import EnterButton from "./Components/EnterButton";
+import { useParams } from "react-router-dom";
+// Remove the Node.js crypto import
+// import crypto from "crypto"; ❌
+
+// Update the hash function to use browser's WebCrypto API
+export const hashPhoneNumber = async (phoneNumber) => {
+  // Convert the phone number to an ArrayBuffer
+  const encoder = new TextEncoder();
+  const data = encoder.encode(phoneNumber);
+  
+  // Hash the data using SHA-256
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  
+  // Convert the hash to a hex string
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// Update the verification function to be async as well
+export const verifyPhoneHash = async (phoneNumber, hash) => {
+  const generatedHash = await hashPhoneNumber(phoneNumber);
+  return generatedHash === hash;
+};
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
-  const { phoneNumber } = useParams();
+  const { phoneHash } = useParams(); // Changed from phoneNumber to phoneHash
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-
-
+  const [actualPhoneNumber, setActualPhoneNumber] = useState(null);
+  const [name,setName] = useState("")
 
   useEffect(() => {
+    if(phoneHash){
     fetchEvents();
-  }, [phoneNumber]);
+    getNameByPhoneHash(phoneHash)
+    }
+  }, [phoneHash]);
 
   async function fetchEvents() {
-    if (!phoneNumber) {
-      setError("Phone number not provided");
+    if (!phoneHash) {
+      setError("Phone hash not provided");
       setLoading(false);
       return;
     }
 
     try {
-      const url = `${apiUrl}/events?phone_number=${encodeURIComponent(phoneNumber)}`;
+      // Option 1: Send the hash to the backend, and let the backend handle the lookup
+      const url = `${apiUrl}/events?phone_hash=${encodeURIComponent(phoneHash)}`;
+      
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -38,6 +63,13 @@ const EventsPage = () => {
 
       const data = await response.json();
       setEvents(data.data || []);
+      
+      // If your backend returns the actual phone number along with the events,
+      // you can set it here for display purposes
+      if (data.phoneNumber) {
+        setActualPhoneNumber(data.phoneNumber);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error("Error fetching events:", error);
@@ -46,10 +78,37 @@ const EventsPage = () => {
     }
   }
 
+
+  async function getNameByPhoneHash(phoneHash) {
+    const url = `${apiUrl}/get_name`;
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ phone_hash: phoneHash }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            setName(data.name + "'s")  // Return the name if found
+        } else {
+            throw new Error(data.error || 'Error retrieving name');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        return null;  // Return null or handle the error accordingly
+    }
+}
+
   return (
-    <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6">
+    <div className="w-screen h-screen flex flex-col items-center bg-gray-50 p-6 overflow-y-scroll">
       <div className="text-4xl font-bold text-green-600 mb-2 mt-6">Upcoming Events</div>
-      <div className="text-xl font-medium text-gray-700 mb-8">{`Events for ${phoneNumber}`}</div>
+      <div className="text-xl font-medium text-gray-700 mb-8">
+        {actualPhoneNumber ? `Events for ${actualPhoneNumber}` : `${name} events for the next week`}
+      </div>
       
       <div className="w-full max-w-5xl px-4">
         {loading ? (
