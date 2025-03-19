@@ -329,10 +329,10 @@ const EventsPage = () => {
           <div className="bg-white rounded-xl shadow-md p-4 mb-2">
             {/* Date Range Filter */}
             <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2">Date Range</label>
+              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Date Range</label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Start Date</div>
+                  <div className="text-xs text-gray-500 text-black bg-white mb-1">Start Date</div>
                   <input
                     type="date"
                     className="border rounded-md p-2 w-full"
@@ -341,7 +341,7 @@ const EventsPage = () => {
                   />
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">End Date</div>
+                  <div className="text-xs text-gray-500 mb-1 text-black bg-white">End Date</div>
                   <input
                     type="date"
                     className="border rounded-md p-2 w-full"
@@ -354,7 +354,7 @@ const EventsPage = () => {
             
             {/* Event Name Search */}
             <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2">Event Name</label>
+              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Event Name</label>
               <input
                 type="text"
                 className="border rounded-md p-2 w-full"
@@ -366,7 +366,7 @@ const EventsPage = () => {
             
             {/* Price Sort */}
             <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">Sort by Price</label>
+              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Sort by Price</label>
               <select
                 className="border rounded-md p-2 w-full"
                 value={priceSort}
@@ -380,7 +380,7 @@ const EventsPage = () => {
           </div>
           
           {/* Category filter buttons */}
-          <div className="grid grid-cols-4 gap-2 mb-2">
+          <div className="grid grid-cols-4 gap-2 mb-2 text-black bg-white">
             <button
               onClick={() => openFilterModal("genres")}
               className={`p-3 rounded-lg flex flex-col items-center justify-center ${
