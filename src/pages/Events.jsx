@@ -328,7 +328,7 @@ const EventsPage = () => {
           {/* Top filters that are always visible */}
           <div className="bg-white rounded-xl shadow-md p-4 mb-2">
             {/* Date Range Filter */}
-            <div className="mb-4">
+            <div className="mb-4 text-black bg-white">
               <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Date Range</label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
