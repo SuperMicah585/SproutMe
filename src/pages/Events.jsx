@@ -315,7 +315,7 @@ const EventsPage = () => {
         {filterCount > 0 && (
           <button
             onClick={resetFilters}
-            className="text-green-600 font-medium"
+            className="text-green-600 font-medium bg-white"
           >
             Clear All
           </button>
@@ -335,7 +335,7 @@ const EventsPage = () => {
                   <div className="text-xs text-gray-500 text-black bg-white mb-1">Start Date</div>
                   <input
                     type="date"
-                    className="border rounded-md p-2 w-full"
+                    className="border rounded-md p-2 w-full text-black bg-white"
                     value={dateRange.start}
                     onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                   />
@@ -344,7 +344,7 @@ const EventsPage = () => {
                   <div className="text-xs text-gray-500 mb-1 text-black bg-white">End Date</div>
                   <input
                     type="date"
-                    className="border rounded-md p-2 w-full"
+                    className="border rounded-md p-2 w-full text-black bg-white"
                     value={dateRange.end}
                     onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
                   />
@@ -357,7 +357,7 @@ const EventsPage = () => {
               <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Event Name</label>
               <input
                 type="text"
-                className="border rounded-md p-2 w-full"
+                className="border rounded-md p-2 w-full text-black bg-white"
                 placeholder="Search by event name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -368,7 +368,7 @@ const EventsPage = () => {
             <div>
               <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Sort by Price</label>
               <select
-                className="border rounded-md p-2 w-full"
+                className="border rounded-md p-2 w-full text-black bg-white"
                 value={priceSort}
                 onChange={(e) => setPriceSort(e.target.value)}
               >
@@ -461,7 +461,7 @@ const EventsPage = () => {
       </h3>
               <button 
                 onClick={() => setActiveFilterModal(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 bg-white hover:text-gray-700"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -471,7 +471,7 @@ const EventsPage = () => {
             
             <div className="overflow-y-auto p-4 flex-grow">
               {activeFilterModal === "genres" && (
-                <div className="space-y-2 max-h-96">
+                <div className="space-y-2 max-h-96 text-black bg-white">
                   {availableGenres.map((genre) => (
                     <div 
                       key={genre}
@@ -596,7 +596,7 @@ const EventsPage = () => {
               if (activeFilterModal === "venues") setSelectedVenues([]);
               if (activeFilterModal === "cities") setSelectedCities([]);
             }}
-            className="text-gray-600 font-medium py-2 px-4"
+            className="text-gray-600 font-medium bg-white py-2 px-4"
           >
             Clear
           </button>
