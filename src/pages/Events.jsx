@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-
+import './events.css'
 // Update the hash function to use browser's WebCrypto API
 export const hashPhoneNumber = async (phoneNumber) => {
   // Convert the phone number to an ArrayBuffer
