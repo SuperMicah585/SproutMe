@@ -156,7 +156,7 @@ const Dashboard = () => {
   }
 
   const handleEventsClick = async (event) => {
-    const url = `https://sproutme-production.up.railway.app/events/${encodeURIComponent(hashedPhone)}`;
+    const url = `/events/${encodeURIComponent(hashedPhone)}`;
     window.open(url, "_blank");
   };
   
