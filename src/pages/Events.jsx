@@ -452,8 +452,8 @@ const EventsPage = () => {
       {activeFilterModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center">
-                  <h3 className="font-bold text-lg">
+            <div className="p-4 border-b flex justify-between items-center ">
+                  <h3 className="font-bold text-lg text-black bg-white">
         {activeFilterModal === "genres" ? "Select Genres" : 
         activeFilterModal === "organizers" ? "Select Organizers" : 
         activeFilterModal === "venues" ? "Select Venues" :
@@ -501,7 +501,7 @@ const EventsPage = () => {
 
 
               {activeFilterModal === "cities" && (
-                <div className="space-y-2 max-h-96">
+                <div className="space-y-2 max-h-96 text-black bg-white">
                   {availableCities.map((city) => (
                     <div 
                       key={city}
@@ -530,7 +530,7 @@ const EventsPage = () => {
               )}
               
               {activeFilterModal === "organizers" && (
-                <div className="space-y-2 max-h-96">
+                <div className="space-y-2 max-h-96 text-black bg-white">
                   {availableOrganizers.map((organizer) => (
                     <div 
                       key={organizer}
@@ -559,7 +559,7 @@ const EventsPage = () => {
               )}
               
               {activeFilterModal === "venues" && (
-                <div className="space-y-2 max-h-96">
+                <div className="space-y-2 max-h-96 text-black bg-white">
                   {availableVenues.map((venue) => (
                     <div 
                       key={venue}
