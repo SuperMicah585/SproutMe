@@ -29,7 +29,7 @@ const EventsPage = () => {
   const [error, setError] = useState(null);
   const [actualPhoneNumber, setActualPhoneNumber] = useState(null);
   const [name, setName] = useState("");
-  
+
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -139,12 +139,18 @@ const EventsPage = () => {
     // Apply date range filter
     if (dateRange.start) {
       const startDate = new Date(dateRange.start);
-      result = result.filter(event => parseEventDate(event.raw_date) >= startDate);
+      result = result.filter(event => {
+        const eventDate = parseEventDate(event.raw_date);
+        return eventDate >= startDate;
+      });
     }
     
     if (dateRange.end) {
       const endDate = new Date(dateRange.end);
-      result = result.filter(event => parseEventDate(event.raw_date) <= endDate);
+      result = result.filter(event => {
+        const eventDate = parseEventDate(event.raw_date);
+        return eventDate <= endDate;
+      });
     }
     
     // Apply genre filter
@@ -638,7 +644,7 @@ const EventsPage = () => {
                 key={index}
                 className="bg-white p-4 rounded-xl shadow-md border border-green-200 transition-all hover:shadow-lg hover:border-green-400"
               >
-                <h3 className="font-bold text-lg text-gray-800 mb-2">{event.event_name.trim()}</h3>
+                <h3 className="font-bold text-lg text-gray-800 mb-2 font-unlock">{event.event_name.trim()}</h3>
                 
                 <div className="space-y-1 mb-3 text-sm">
                   <div className="flex">
@@ -676,7 +682,7 @@ const EventsPage = () => {
                     href={event.event_url.trim()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg transition-colors"
+                    className="block w-full text-center bg-green-500 hover:bg-green-600 hover:text-white text-white font-medium py-2 rounded-lg transition-colors"
                   >
                     View Event
                   </a>

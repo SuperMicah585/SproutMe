@@ -4,8 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Define your custom font */
+@font-face {
+  font-family: 'FreePixel';
+  src: url('/fonts/FreePixel.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Primary font is your custom font, fallback to system fonts */
+  font-family: 'FreePixel', -apple-system, BlinkMacSystemFont, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -34,6 +43,7 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  font-family: 'FreePixel', sans-serif;
 }
 
 h1 {
@@ -48,13 +58,17 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #333;
+  color: white;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: border-color 0.25s, background-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
+  background-color: #444;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -70,5 +84,9 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+    color: #213547;
+  }
+  button:hover {
+    background-color: #e0e0e0;
   }
 }
