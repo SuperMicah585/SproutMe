@@ -246,10 +246,10 @@ const Dashboard = () => {
             {genreArray.map((item, index) => (
               <div 
                 key={index} 
-                className="p-3 bg-green-50 border-2 border-green-300 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 flex justify-between items-center shadow-sm"
+                className="p-3 bg-purple-100 text-purple-800 border-purple-300 border-2 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 flex justify-between items-center shadow-sm"
                 onClick={() => handleRemove(item, setGenreArray, genreChanged)}
               >
-                <span className="font-semibold text-green-800">{item}</span> 
+                <span className="font-semibold text-purple-800">{item}</span> 
                 <span className="text-red-500 font-bold ml-2 text-lg hover:scale-125 transition-transform">×</span>
               </div>
             ))}
@@ -279,10 +279,10 @@ const Dashboard = () => {
             {cityArray.map((item, index) => (
               <div 
                 key={index} 
-                className="p-3 bg-green-50 border-2 border-green-300 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 flex justify-between items-center shadow-sm"
+                className="p-3 bg-purple-100 text-purple-800 border-purple-300 border-2 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 flex justify-between items-center shadow-sm"
                 onClick={() => handleRemove(item, setCityArray, cityChanged)}
               >
-                <span className="font-semibold text-green-800">{item}</span> 
+                <span className="font-semibold text-purple-800">{item}</span> 
                 <span className="text-red-500 font-bold ml-2 text-lg hover:scale-125 transition-transform">×</span>
               </div>
             ))}

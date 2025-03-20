@@ -328,9 +328,9 @@ const EventsPage = () => {
       
       {/* Mobile-Friendly Filters */}
       {showFilters && (
-        <div className="w-full max-w-5xl px-4 mb-6">
+        <div className="w-full max-w-5xl px-4 mb-6 ">
           {/* Top filters that are always visible */}
-          <div className="bg-white rounded-xl shadow-md p-4 mb-2">
+          <div className="bg-white rounded-xl shadow-md p-4 mb-2 border border-green-200 ">
             {/* Date Range Filter */}
             <div className="mb-4 text-black bg-white">
               <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Date Range</label>
@@ -387,7 +387,7 @@ const EventsPage = () => {
           <div className="grid grid-cols-4 gap-2 mb-2 text-black bg-white">
             <button
               onClick={() => openFilterModal("genres")}
-              className={`p-3 rounded-lg flex flex-col items-center justify-center ${
+              className={`p-3 rounded-lg flex  border-2 border-purple-300 border-dotted flex-col items-center justify-center ${
                 selectedGenres.length > 0 
                   ? 'bg-green-500 text-white' 
                   : 'bg-white shadow-md'
@@ -403,7 +403,7 @@ const EventsPage = () => {
             
             <button
               onClick={() => openFilterModal("organizers")}
-              className={`p-3 rounded-lg flex flex-col items-center justify-center ${
+              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
                 selectedOrganizers.length > 0 
                   ? 'bg-green-500 text-white' 
                   : 'bg-white shadow-md'
@@ -419,7 +419,7 @@ const EventsPage = () => {
             
             <button
               onClick={() => openFilterModal("venues")}
-              className={`p-3 rounded-lg flex flex-col items-center justify-center ${
+              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
                 selectedVenues.length > 0 
                   ? 'bg-green-500 text-white' 
                   : 'bg-white shadow-md'
@@ -435,7 +435,7 @@ const EventsPage = () => {
 
           <button
             onClick={() => openFilterModal("cities")}
-            className={`p-3 rounded-lg flex flex-col items-center justify-center ${
+            className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
               selectedCities.length > 0 
                 ? 'bg-green-500 text-white' 
                 : 'bg-white shadow-md'
@@ -644,7 +644,7 @@ const EventsPage = () => {
                 key={index}
                 className="bg-white p-4 rounded-xl shadow-md border border-green-200 transition-all hover:shadow-lg hover:border-green-400"
               >
-                <h3 className="text-black mb-2 font-extrabold text-black">{event.event_name.trim()}</h3>
+                <h3 className="text-black mb-2 font-extrabold font-prosto text-black">{event.event_name.trim()}</h3>
                 
                 <div className="space-y-1 mb-3 text-sm">
                   <div className="flex">

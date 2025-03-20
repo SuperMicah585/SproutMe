@@ -8,6 +8,7 @@ module.exports = {
       extend: {
         fontFamily: {
           unlock: ['Unlock','cursive'], // Add the Unlock font as a fallback
+          prosto: ["'Prosto One'", "cursive"],
         },
       },
     },
