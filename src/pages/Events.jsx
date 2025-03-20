@@ -661,7 +661,7 @@ const EventsPage = () => {
                     <span className="font-medium text-gray-600 w-20">Genre:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {event.genre.split(', ').map((g, i) => (
-                        <span key={i} className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">{g.trim()}</span>
+                        <span key={i} className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs">{g.trim()}</span>
                       ))}
                     </div>
                   </div>
