@@ -387,7 +387,7 @@ const EventsPage = () => {
           <div className="grid grid-cols-4 gap-2 mb-2 text-black bg-white">
             <button
               onClick={() => openFilterModal("genres")}
-              className={`p-3 rounded-lg flex  border-2 border-purple-300 border-dotted flex-col items-center justify-center ${
+              className={`p-3 rounded-lg flex  border-2 border-purple-300 border-dotted flex-col items-center text-black justify-center ${
                 selectedGenres.length > 0 
                   ? 'bg-green-500 text-white' 
                   : 'bg-white shadow-md'
@@ -403,9 +403,9 @@ const EventsPage = () => {
             
             <button
               onClick={() => openFilterModal("organizers")}
-              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
+              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center text-black text-black justify-center ${
                 selectedOrganizers.length > 0 
-                  ? 'bg-green-500 text-white' 
+                  ? 'bg-green-500 ' 
                   : 'bg-white shadow-md'
               }`}
             >
@@ -419,7 +419,7 @@ const EventsPage = () => {
             
             <button
               onClick={() => openFilterModal("venues")}
-              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
+              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted text-black items-center justify-center ${
                 selectedVenues.length > 0 
                   ? 'bg-green-500 text-white' 
                   : 'bg-white shadow-md'
@@ -435,7 +435,7 @@ const EventsPage = () => {
 
           <button
             onClick={() => openFilterModal("cities")}
-            className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center justify-center ${
+            className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted text-black items-center justify-center ${
               selectedCities.length > 0 
                 ? 'bg-green-500 text-white' 
                 : 'bg-white shadow-md'
