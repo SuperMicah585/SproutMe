@@ -1,4 +1,0 @@
-input[type="date"]::-webkit-calendar-picker-indicator {
-    @apply invert brightness-0 cursor-pointer;
-  }
-  

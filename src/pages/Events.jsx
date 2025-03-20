@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import './events.css'
 // Update the hash function to use browser's WebCrypto API
 export const hashPhoneNumber = async (phoneNumber) => {
   // Convert the phone number to an ArrayBuffer
@@ -52,7 +51,6 @@ const EventsPage = () => {
   const [filterCount, setFilterCount] = useState(0);
 
 
-  console.log(events)
   useEffect(() => {
     if(phoneHash) {
       fetchEvents();
@@ -292,7 +290,7 @@ const EventsPage = () => {
     <div className="w-screen h-screen flex flex-col items-center bg-gray-50 overflow-y-scroll">
       <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2 mt-4 md:mt-6">Upcoming Events</div>
       <div className="text-lg md:text-xl font-medium text-gray-700 mb-2 px-4 text-center">
-        {actualPhoneNumber ? `Events for ${actualPhoneNumber}` : `${name} events for the next week`}
+        {actualPhoneNumber ? `Events for ${actualPhoneNumber}` : `${name} upcoming events`}
       </div>
       
       {/* Filters Toggle Button */}
