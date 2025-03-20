@@ -644,7 +644,7 @@ const EventsPage = () => {
                 key={index}
                 className="bg-white p-4 rounded-xl shadow-md border border-green-200 transition-all hover:shadow-lg hover:border-green-400"
               >
-                <h3 className="font-bold text-lg text-gray-800 mb-2 font-unlock">{event.event_name.trim()}</h3>
+                <h3 className="text-black mb-2 font-extrabold text-black">{event.event_name.trim()}</h3>
                 
                 <div className="space-y-1 mb-3 text-sm">
                   <div className="flex">
