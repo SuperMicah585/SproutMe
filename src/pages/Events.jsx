@@ -50,7 +50,6 @@ const EventsPage = () => {
   const [activeFilterModal, setActiveFilterModal] = useState(null); // null, "genres", "organizers", "venues"
   const [filterCount, setFilterCount] = useState(0);
 
-  console.log(availableCities)
   useEffect(() => {
     if(phoneHash) {
       fetchEvents();
