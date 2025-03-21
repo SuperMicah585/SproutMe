@@ -50,7 +50,7 @@ const EventsPage = () => {
   const [activeFilterModal, setActiveFilterModal] = useState(null); // null, "genres", "organizers", "venues"
   const [filterCount, setFilterCount] = useState(0);
 
-
+  console.log(availableCities)
   useEffect(() => {
     if(phoneHash) {
       fetchEvents();
@@ -59,33 +59,65 @@ const EventsPage = () => {
   }, [phoneHash]);
 
   // Apply filters whenever filter states or events change
-  useEffect(() => {
-    applyFilters();
-  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, priceSort]);
+// Update this useEffect to include selectedCities in the dependency array
+useEffect(() => {
+  applyFilters();
+}, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort]);
 
-  // Extract unique filter options when events are loaded
-  useEffect(() => {
-    if (events.length > 0) {
-      // Extract unique genres
-      const genres = [...new Set(events.flatMap(event => 
-        event.genre.split(', ').map(g => g.trim())
-      ))].sort();
-      
-      // Extract unique organizers
-      const organizers = [...new Set(events.map(event => 
-        event.organizer.trim()
-      ))].filter(org => org).sort();
-      
-      // Extract unique venues
-      const venues = [...new Set(events.map(event => 
-        event.venue.trim()
-      ))].sort();
-      
-      setAvailableGenres(genres);
-      setAvailableOrganizers(organizers);
-      setAvailableVenues(venues);
-    }
-  }, [events]);
+// Extract unique filter options with counts when events are loaded
+useEffect(() => {
+  if (events.length > 0) {
+    // Extract unique genres with counts
+    const genreCounts = {};
+    events.forEach(event => {
+      event.genre.split(', ').map(g => g.trim()).forEach(genre => {
+        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+      });
+    });
+    const genres = Object.entries(genreCounts)
+      .map(([genre, count]) => ({ name: genre, count }))
+      .sort((a, b) => b.count - a.count);
+    
+    // Extract unique organizers with counts
+    const organizerCounts = {};
+    events.forEach(event => {
+      const organizer = event.organizer.trim();
+      if (organizer) {
+        organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
+      }
+    });
+    const organizers = Object.entries(organizerCounts)
+      .map(([organizer, count]) => ({ name: organizer, count }))
+      .sort((a, b) => b.count - a.count);
+    
+    // Extract unique venues with counts
+    const venueCounts = {};
+    events.forEach(event => {
+      const venue = event.venue.trim();
+      venueCounts[venue] = (venueCounts[venue] || 0) + 1;
+    });
+    const venues = Object.entries(venueCounts)
+      .map(([venue, count]) => ({ name: venue, count }))
+      .sort((a, b) => b.count - a.count);
+    
+    // Extract unique cities with counts
+    const cityCounts = {};
+    events.forEach(event => {
+      const city = event.city?.trim();
+      if (city) {
+        cityCounts[city] = (cityCounts[city] || 0) + 1;
+      }
+    });
+    const cities = Object.entries(cityCounts)
+      .map(([city, count]) => ({ name: city, count }))
+      .sort((a, b) => b.count - a.count);
+    
+    setAvailableGenres(genres);
+    setAvailableOrganizers(organizers);
+    setAvailableVenues(venues);
+    setAvailableCities(cities);
+  }
+}, [events]);
 
   // Update filter count for badge
   useEffect(() => {
@@ -120,18 +152,7 @@ const EventsPage = () => {
     return 0; // Default price if no price found
   };
 
-  useEffect(() => {
-    if (events.length > 0) {
-      // Extract unique cities
-      const cities = [...new Set(events.map(event => 
-        event.city?.trim()
-      ))].filter(city => city).sort();
-      
-      setAvailableCities(cities);
-      
-      // Your existing code for genres, organizers, venues...
-    }
-  }, [events]);
+
 
   const applyFilters = () => {
     let result = [...events];
@@ -160,19 +181,11 @@ const EventsPage = () => {
         return selectedGenres.some(genre => eventGenres.includes(genre));
       });
     }
-
-        // Apply city filter
+    
+    // Apply city filter
     if (selectedCities.length > 0) {
       result = result.filter(event => 
         selectedCities.includes(event.city?.trim())
-      );
-    }
-        
-    // Apply search term filter (for event name)
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(event => 
-        event.event_name.toLowerCase().includes(term)
       );
     }
     
@@ -474,122 +487,133 @@ const EventsPage = () => {
             </div>
             
             <div className="overflow-y-auto p-4 flex-grow">
-              {activeFilterModal === "genres" && (
-                <div className="space-y-2 max-h-96 text-black bg-white">
-                  {availableGenres.map((genre) => (
-                    <div 
-                      key={genre}
-                      onClick={() => setSelectedGenres(toggleArrayItem(selectedGenres, genre))}
-                      className={`p-3 rounded-lg flex items-center ${
-                        selectedGenres.includes(genre)
-                          ? 'bg-green-100 border border-green-500'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-                        selectedGenres.includes(genre)
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-400'
-                      }`}>
-                        {selectedGenres.includes(genre) && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span>{genre}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            {activeFilterModal === "genres" && (
+  <div className="space-y-2 max-h-96 text-black bg-white">
+    {availableGenres.map((genre) => (
+      <div 
+        key={genre.name}
+        onClick={() => setSelectedGenres(toggleArrayItem(selectedGenres, genre.name))}
+        className={`p-3 rounded-lg flex items-center justify-between ${
+          selectedGenres.includes(genre.name)
+            ? 'bg-green-100 border border-green-500'
+            : 'bg-gray-50 border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center">
+          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+            selectedGenres.includes(genre.name)
+              ? 'bg-green-500 border-green-500'
+              : 'border-gray-400'
+          }`}>
+            {selectedGenres.includes(genre.name) && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+          <span>{genre.name}</span>
+        </div>
+        <span className="text-gray-500 text-sm">{genre.count}</span>
+      </div>
+    ))}
+  </div>
+)}
 
+{activeFilterModal === "cities" && (
+  <div className="space-y-2 max-h-96 text-black bg-white">
+    {availableCities.map((city) => (
+      <div 
+        key={city.name}
+        onClick={() => setSelectedCities(toggleArrayItem(selectedCities, city.name))}
+        className={`p-3 rounded-lg flex items-center justify-between ${
+          selectedCities.includes(city.name)
+            ? 'bg-green-100 border border-green-500'
+            : 'bg-gray-50 border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center">
+          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+            selectedCities.includes(city.name)
+              ? 'bg-green-500 border-green-500'
+              : 'border-gray-400'
+          }`}>
+            {selectedCities.includes(city.name) && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+          <span>{city.name}</span>
+        </div>
+        <span className="text-gray-500 text-sm">{city.count}</span>
+      </div>
+    ))}
+  </div>
+)}
 
-              {activeFilterModal === "cities" && (
-                <div className="space-y-2 max-h-96 text-black bg-white">
-                  {availableCities.map((city) => (
-                    <div 
-                      key={city}
-                      onClick={() => setSelectedCities(toggleArrayItem(selectedCities, city))}
-                      className={`p-3 rounded-lg flex items-center ${
-                        selectedCities.includes(city)
-                          ? 'bg-green-100 border border-green-500'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-                        selectedCities.includes(city)
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-400'
-                      }`}>
-                        {selectedCities.includes(city) && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span>{city}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {activeFilterModal === "organizers" && (
-                <div className="space-y-2 max-h-96 text-black bg-white">
-                  {availableOrganizers.map((organizer) => (
-                    <div 
-                      key={organizer}
-                      onClick={() => setSelectedOrganizers(toggleArrayItem(selectedOrganizers, organizer))}
-                      className={`p-3 rounded-lg flex items-center ${
-                        selectedOrganizers.includes(organizer)
-                          ? 'bg-green-100 border border-green-500'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-                        selectedOrganizers.includes(organizer)
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-400'
-                      }`}>
-                        {selectedOrganizers.includes(organizer) && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span>{organizer || "Unknown"}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {activeFilterModal === "venues" && (
-                <div className="space-y-2 max-h-96 text-black bg-white">
-                  {availableVenues.map((venue) => (
-                    <div 
-                      key={venue}
-                      onClick={() => setSelectedVenues(toggleArrayItem(selectedVenues, venue))}
-                      className={`p-3 rounded-lg flex items-center ${
-                        selectedVenues.includes(venue)
-                          ? 'bg-green-100 border border-green-500'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-                        selectedVenues.includes(venue)
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-400'
-                      }`}>
-                        {selectedVenues.includes(venue) && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <span>{venue}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+{activeFilterModal === "organizers" && (
+  <div className="space-y-2 max-h-96 text-black bg-white">
+    {availableOrganizers.map((organizer) => (
+      <div 
+        key={organizer.name}
+        onClick={() => setSelectedOrganizers(toggleArrayItem(selectedOrganizers, organizer.name))}
+        className={`p-3 rounded-lg flex items-center justify-between ${
+          selectedOrganizers.includes(organizer.name)
+            ? 'bg-green-100 border border-green-500'
+            : 'bg-gray-50 border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center">
+          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+            selectedOrganizers.includes(organizer.name)
+              ? 'bg-green-500 border-green-500'
+              : 'border-gray-400'
+          }`}>
+            {selectedOrganizers.includes(organizer.name) && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+          <span>{organizer.name || "Unknown"}</span>
+        </div>
+        <span className="text-gray-500 text-sm">{organizer.count}</span>
+      </div>
+    ))}
+  </div>
+)}
+
+{activeFilterModal === "venues" && (
+  <div className="space-y-2 max-h-96 text-black bg-white">
+    {availableVenues.map((venue) => (
+      <div 
+        key={venue.name}
+        onClick={() => setSelectedVenues(toggleArrayItem(selectedVenues, venue.name))}
+        className={`p-3 rounded-lg flex items-center justify-between ${
+          selectedVenues.includes(venue.name)
+            ? 'bg-green-100 border border-green-500'
+            : 'bg-gray-50 border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center">
+          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+            selectedVenues.includes(venue.name)
+              ? 'bg-green-500 border-green-500'
+              : 'border-gray-400'
+          }`}>
+            {selectedVenues.includes(venue.name) && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
+          <span>{venue.name}</span>
+        </div>
+        <span className="text-gray-500 text-sm">{venue.count}</span>
+      </div>
+    ))}
+  </div>
+)}
             </div>
             
             <div className="p-4 border-t flex justify-between">
