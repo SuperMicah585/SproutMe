@@ -772,6 +772,20 @@ const EventsPage = () => {
         </div>
       </div>
       
+      {/* Tagline Header */}
+      <div className="w-full max-w-5xl px-4 mb-6 text-center">
+        <h1 className={`font-bold text-2xl md:text-3xl mb-2 ${
+          darkMode ? 'text-green-400' : 'text-green-600'
+        } transition-colors duration-300 font-prosto`}>
+          Your EDM Show Companion
+        </h1>
+        <p className={`text-sm md:text-base ${
+          darkMode ? 'text-gray-300' : 'text-gray-600'
+        } transition-colors duration-300 font-prosto`}>
+          Discover the best electronic music events across North America
+        </p>
+      </div>
+      
       {/* Filter section */}
       <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-4">
         <div className="flex items-center">
