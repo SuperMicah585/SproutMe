@@ -118,7 +118,11 @@ const FilterModal = ({
                     </div>
                     <span>{genre.name}</span>
                   </div>
-                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm transition-colors duration-300`}>{genre.count}</span>
+                  <span className={`text-sm font-medium ${
+                    selectedGenres.includes(genre.name) 
+                      ? 'text-white' 
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  } transition-colors duration-300`}>{genre.count}</span>
                 </div>
               ))
             )}
@@ -160,7 +164,11 @@ const FilterModal = ({
                     </div>
                     <span>{city.name}</span>
                   </div>
-                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm transition-colors duration-300`}>{city.count}</span>
+                  <span className={`text-sm font-medium ${
+                    selectedCities.includes(city.name) 
+                      ? 'text-white' 
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  } transition-colors duration-300`}>{city.count}</span>
                 </div>
               ))
             )}
@@ -202,7 +210,11 @@ const FilterModal = ({
                     </div>
                     <span>{organizer.name || "Unknown"}</span>
                   </div>
-                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm transition-colors duration-300`}>{organizer.count}</span>
+                  <span className={`text-sm font-medium ${
+                    selectedOrganizers.includes(organizer.name) 
+                      ? 'text-white' 
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  } transition-colors duration-300`}>{organizer.count}</span>
                 </div>
               ))
             )}
@@ -244,7 +256,11 @@ const FilterModal = ({
                     </div>
                     <span>{venue.name}</span>
                   </div>
-                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm transition-colors duration-300`}>{venue.count}</span>
+                  <span className={`text-sm font-medium ${
+                    selectedVenues.includes(venue.name) 
+                      ? 'text-white' 
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  } transition-colors duration-300`}>{venue.count}</span>
                 </div>
               ))
             )}
@@ -353,21 +369,15 @@ const FilterModal = ({
         <div className={`p-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-t flex justify-between transition-colors duration-300`}>
           <button
             onClick={clearCurrentSelection}
-            className={`${
-              darkMode 
-                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white' 
-                : 'text-gray-600 hover:text-gray-800'
-            } font-medium py-2 px-4 rounded-lg transition-colors duration-300`}
+            className={`px-4 py-2 ${
+              darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+            } text-sm font-medium rounded-lg transition-colors duration-300`}
           >
             Clear
           </button>
           <button
             onClick={() => setActiveFilterModal(null)}
-            className={`${
-              darkMode 
-                ? 'bg-purple-700 hover:bg-purple-800' 
-                : 'bg-purple-500 hover:bg-purple-600'
-            } text-white font-medium py-2 px-6 rounded-lg transition-colors duration-300`}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-300"
           >
             Done
           </button>
