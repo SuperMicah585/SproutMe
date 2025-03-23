@@ -1,14 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EnterButton from './Components/EnterButton';
 import sproutIcon from './Components/sprout_icon.png';
 import { useNavigate } from "react-router-dom";
-import {useToast} from "./Components/ToastNotification"
+import { useToast } from "./Components/ToastNotification";
+import { useAuth } from "../context/AuthContext";
 
 const EnterNumber = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
   const [inputValue, setInputValue] = useState('');
   const navigate = useNavigate();
   const toast = useToast();
+  const { isLoggedIn } = useAuth();
+  
+  // If already logged in, redirect to events page
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigate('/events');
+    }
+  }, [isLoggedIn, navigate]);
+  
   const handleInputChange = (e) => {
     setInputValue(e.target.value);
   };

@@ -1,35 +1,45 @@
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-// Update the hash function to use browser's WebCrypto API
-export const hashPhoneNumber = async (phoneNumber) => {
-  // Convert the phone number to an ArrayBuffer
-  const encoder = new TextEncoder();
-  const data = encoder.encode(phoneNumber);
-  
-  // Hash the data using SHA-256
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-  
-  // Convert the hash to a hex string
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-};
-
-// Update the verification function to be async as well
-export const verifyPhoneHash = async (phoneNumber, hash) => {
-  const generatedHash = await hashPhoneNumber(phoneNumber);
-  return generatedHash === hash;
-};
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import EventList from "../components/events/EventList";
+import FilterSection from "../components/events/FilterSection";
+import FilterModal from "../components/events/FilterModal";
+import ThemeToggle from "../components/events/ThemeToggle";
+import { 
+  hashPhoneNumber, 
+  verifyPhoneHash, 
+  parseEventDate, 
+  extractPrice, 
+  toggleArrayItem,
+  extractCityFromVenue
+} from "../components/events/eventUtils";
+import sproutIcon from './Components/sprout_icon.png';
+import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
+import { useToast } from "./Components/ToastNotification";
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
-  const { phoneHash } = useParams();
+  const { phoneHash: urlPhoneHash } = useParams();
+  const { isLoggedIn, phoneHash: authPhoneHash, userName, phoneNumber: authPhoneNumber, getPhoneHash, logout } = useAuth();
+  const { darkMode } = useTheme();
+  const toast = useToast();
+  const navigate = useNavigate();
+  
+  // Refs to prevent unnecessary refetching
+  const hasLoadedInitialData = useRef(false);
+  const prevUrlPhoneHash = useRef(urlPhoneHash);
+  const prevAuthPhoneHash = useRef(authPhoneHash);
+  
   const [events, setEvents] = useState([]);
-  const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actualPhoneNumber, setActualPhoneNumber] = useState(null);
   const [name, setName] = useState("");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [eventsPerPage] = useState(50); // Reduced from 100 to 50 for better performance
+  
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -38,123 +48,50 @@ const EventsPage = () => {
   const [selectedVenues, setSelectedVenues] = useState([]);
   const [priceSort, setPriceSort] = useState("none"); // "none", "asc", "desc"
   const [selectedCities, setSelectedCities] = useState([]);
-  const [availableCities, setAvailableCities] = useState([]);
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
   
-  // For dropdown filters
+  // For dropdown filters - only populate when needed
   const [availableGenres, setAvailableGenres] = useState([]);
   const [availableOrganizers, setAvailableOrganizers] = useState([]);
   const [availableVenues, setAvailableVenues] = useState([]);
+  const [availableCities, setAvailableCities] = useState([]);
   
   // Mobile UI states
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilterModal, setActiveFilterModal] = useState(null); // null, "genres", "organizers", "venues"
   const [filterCount, setFilterCount] = useState(0);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
-    if(phoneHash) {
-      fetchEvents();
-      getNameByPhoneHash(phoneHash);
-    }
-  }, [phoneHash]);
-
-  // Apply filters whenever filter states or events change
-// Update this useEffect to include selectedCities in the dependency array
-useEffect(() => {
-  applyFilters();
-}, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort]);
-
-// Extract unique filter options with counts when events are loaded
-useEffect(() => {
-  if (events.length > 0) {
-    // Extract unique genres with counts
-    const genreCounts = {};
-    events.forEach(event => {
-      event.genre.split(', ').map(g => g.trim()).forEach(genre => {
-        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-      });
-    });
-    const genres = Object.entries(genreCounts)
-      .map(([genre, count]) => ({ name: genre, count }))
-      .sort((a, b) => b.count - a.count);
-    
-    // Extract unique organizers with counts
-    const organizerCounts = {};
-    events.forEach(event => {
-      const organizer = event.organizer.trim();
-      if (organizer) {
-        organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
+    // Only run once on mount or when phone hash changes
+    const fetchData = async () => {
+      if (!hasLoadedInitialData.current) {
+        console.log("Initial fetch events call");
+        await fetchEvents();
+        hasLoadedInitialData.current = true;
+      } else if (
+        urlPhoneHash !== prevUrlPhoneHash.current || 
+        authPhoneHash !== prevAuthPhoneHash.current
+      ) {
+        console.log("Hash change fetch events call");
+        await fetchEvents();
       }
-    });
-    const organizers = Object.entries(organizerCounts)
-      .map(([organizer, count]) => ({ name: organizer, count }))
-      .sort((a, b) => b.count - a.count);
+      
+      // Update previous hash values regardless
+      prevUrlPhoneHash.current = urlPhoneHash;
+      prevAuthPhoneHash.current = authPhoneHash;
+    };
     
-    // Extract unique venues with counts
-    const venueCounts = {};
-    events.forEach(event => {
-      const venue = event.venue.trim();
-      venueCounts[venue] = (venueCounts[venue] || 0) + 1;
-    });
-    const venues = Object.entries(venueCounts)
-      .map(([venue, count]) => ({ name: venue, count }))
-      .sort((a, b) => b.count - a.count);
+    fetchData();
     
-    // Extract unique cities with counts
-    const cityCounts = {};
-    events.forEach(event => {
-      const city = event.city?.trim();
-      if (city) {
-        cityCounts[city] = (cityCounts[city] || 0) + 1;
-      }
-    });
-    const cities = Object.entries(cityCounts)
-      .map(([city, count]) => ({ name: city, count }))
-      .sort((a, b) => b.count - a.count);
-    
-    setAvailableGenres(genres);
-    setAvailableOrganizers(organizers);
-    setAvailableVenues(venues);
-    setAvailableCities(cities);
-  }
-}, [events]);
+    // Using an empty dependency array ensures this only runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Update filter count for badge
-  useEffect(() => {
-    let count = 0;
-    if (dateRange.start || dateRange.end) count++;
-    if (selectedGenres.length) count++;
-    if (searchTerm) count++;
-    if (selectedOrganizers.length) count++;
-    if (selectedVenues.length) count++;
-    if (selectedCities.length) count++;
-    if (priceSort !== "none") count++;
-    
-    setFilterCount(count);
-  }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort]);
-
-  // Parse date string to Date object
-  const parseEventDate = (rawDate) => {
-    const [year, month, day] = rawDate.split('/').map(Number);
-    return new Date(year, month - 1, day);
-  };
-
-  // Extract ticket price from ticket_info
-  const extractPrice = (ticketInfo) => {
-    const priceMatch = ticketInfo.match(/\$(\d+(?:-\d+)?)/);
-    if (priceMatch) {
-      const priceStr = priceMatch[1];
-      if (priceStr.includes('-')) {
-        return parseFloat(priceStr.split('-')[0]);
-      }
-      return parseFloat(priceStr);
-    }
-    return 0; // Default price if no price found
-  };
-
-
-
-  const applyFilters = () => {
-    let result = [...events];
+  // Use useMemo to compute filtered events instead of storing in state
+  const filteredEvents = useMemo(() => {
+    console.log('Computing filtered events');
+    let result = events;
     
     // Apply date range filter
     if (dateRange.start) {
@@ -173,9 +110,22 @@ useEffect(() => {
       });
     }
     
+    // Apply search term filter
+    if (searchTerm.trim() !== '') {
+      const term = searchTerm.trim().toLowerCase();
+      result = result.filter(event => 
+        event.event_name.toLowerCase().includes(term)
+      );
+    }
+    
     // Apply genre filter
     if (selectedGenres.length > 0) {
       result = result.filter(event => {
+        // Handle empty genre case
+        if (!event.genre || !event.genre.trim()) {
+          return selectedGenres.includes('None');
+        }
+        
         const eventGenres = event.genre.split(', ').map(g => g.trim());
         return selectedGenres.some(genre => eventGenres.includes(genre));
       });
@@ -183,9 +133,10 @@ useEffect(() => {
     
     // Apply city filter
     if (selectedCities.length > 0) {
-      result = result.filter(event => 
-        selectedCities.includes(event.city?.trim())
-      );
+      result = result.filter(event => {
+        const city = extractCityFromVenue(event.venue);
+        return city && selectedCities.includes(city);
+      });
     }
     
     // Apply organizer filter
@@ -202,28 +153,479 @@ useEffect(() => {
       );
     }
     
+    // Apply starred events filter
+    if (showStarredOnly) {
+      result = result.filter(event => event.is_favorite === true);
+    }
+    
     // Apply price sorting
     if (priceSort !== "none") {
-      result.sort((a, b) => {
+      return [...result].sort((a, b) => {
         const priceA = extractPrice(a.ticket_info);
         const priceB = extractPrice(b.ticket_info);
         return priceSort === "asc" ? priceA - priceB : priceB - priceA;
       });
     }
     
-    setFilteredEvents(result);
+    return result;
+  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
+
+  // Memoize displayed events for current page
+  const displayedEvents = useMemo(() => {
+    const indexOfLastEvent = currentPage * eventsPerPage;
+    const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
+    return filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
+  }, [filteredEvents, currentPage, eventsPerPage]);
+
+  // Memoize the filter counts calculation
+  const calculateFilteredEventsForCounts = useCallback((excludeFilterType) => {
+    let result = events;
+    
+    // Apply date range filter
+    if (excludeFilterType !== 'date' && (dateRange.start || dateRange.end)) {
+      if (dateRange.start) {
+        const startDate = new Date(dateRange.start);
+        result = result.filter(event => {
+          const eventDate = parseEventDate(event.raw_date);
+          return eventDate >= startDate;
+        });
+      }
+      
+      if (dateRange.end) {
+        const endDate = new Date(dateRange.end);
+        result = result.filter(event => {
+          const eventDate = parseEventDate(event.raw_date);
+          return eventDate <= endDate;
+        });
+      }
+    }
+    
+    // Apply search term filter
+    if (excludeFilterType !== 'search' && searchTerm.trim() !== '') {
+      const term = searchTerm.trim().toLowerCase();
+      result = result.filter(event => 
+        event.event_name.toLowerCase().includes(term)
+      );
+    }
+    
+    // Apply genre filter
+    if (excludeFilterType !== 'genres' && selectedGenres.length > 0) {
+      result = result.filter(event => {
+        // Handle empty genre case
+        if (!event.genre || !event.genre.trim()) {
+          return selectedGenres.includes('None');
+        }
+        
+        const eventGenres = event.genre.split(', ').map(g => g.trim());
+        return selectedGenres.some(genre => eventGenres.includes(genre));
+      });
+    }
+    
+    // Apply city filter
+    if (excludeFilterType !== 'cities' && selectedCities.length > 0) {
+      result = result.filter(event => {
+        const city = extractCityFromVenue(event.venue);
+        return city && selectedCities.includes(city);
+      });
+    }
+    
+    // Apply organizer filter
+    if (excludeFilterType !== 'organizers' && selectedOrganizers.length > 0) {
+      result = result.filter(event => 
+        selectedOrganizers.includes(event.organizer.trim())
+      );
+    }
+    
+    // Apply venue filter
+    if (excludeFilterType !== 'venues' && selectedVenues.length > 0) {
+      result = result.filter(event => 
+        selectedVenues.includes(event.venue.trim())
+      );
+    }
+    
+    // Apply starred filter
+    if (excludeFilterType !== 'starred' && showStarredOnly) {
+      result = result.filter(event => event.is_favorite === true);
+    }
+    
+    return result;
+  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, showStarredOnly]);
+
+  // Memoize filtered events for counts to prevent recreation
+  const filteredEventsForCounts = useMemo(() => {
+    if (filterCount === 0 || !activeFilterModal) {
+      return events;
+    }
+    
+    // Skip the current filter type when calculating available options
+    return calculateFilteredEventsForCounts(activeFilterModal);
+  }, [events, activeFilterModal, filterCount, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly, calculateFilteredEventsForCounts]);
+
+  // Update pagination when filtered events change
+  useEffect(() => {
+    // Reset to first page when filters change
+    setCurrentPage(1);
+  }, [filteredEvents.length]);
+
+  // Extract filter options only when modal is opened
+  useEffect(() => {
+    if (activeFilterModal && filteredEventsForCounts.length > 0) {
+      extractFilterOptions(filteredEventsForCounts);
+    }
+  }, [activeFilterModal, filteredEventsForCounts]);
+
+  // Extract unique filter options with counts from the provided events array
+  const extractFilterOptions = useCallback((eventsArray) => {
+    if (!eventsArray || eventsArray.length === 0) return;
+  
+    // Extract unique genres with counts
+    if (activeFilterModal === 'genres') {
+      const genreCounts = {};
+      eventsArray.forEach(event => {
+        const eventGenres = event.genre && event.genre.trim() ? 
+          event.genre.split(', ').map(g => g.trim()) : 
+          ['None'];
+        
+        eventGenres.forEach(genre => {
+          genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+        });
+      });
+      const genres = Object.entries(genreCounts)
+        .map(([genre, count]) => ({ name: genre, count }))
+        .sort((a, b) => b.count - a.count);
+      setAvailableGenres(genres);
+    }
+    
+    // Extract unique organizers with counts
+    else if (activeFilterModal === 'organizers') {
+      const organizerCounts = {};
+      eventsArray.forEach(event => {
+        const organizer = event.organizer.trim();
+        if (organizer) {
+          organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
+        }
+      });
+      const organizers = Object.entries(organizerCounts)
+        .map(([organizer, count]) => ({ name: organizer, count }))
+        .sort((a, b) => b.count - a.count);
+      setAvailableOrganizers(organizers);
+    }
+    
+    // Extract unique venues with counts
+    else if (activeFilterModal === 'venues') {
+      const venueCounts = {};
+      eventsArray.forEach(event => {
+        const venue = event.venue.trim();
+        venueCounts[venue] = (venueCounts[venue] || 0) + 1;
+      });
+      const venues = Object.entries(venueCounts)
+        .map(([venue, count]) => ({ name: venue, count }))
+        .sort((a, b) => b.count - a.count);
+      setAvailableVenues(venues);
+    }
+    
+    // Extract cities from venue strings with counts
+    else if (activeFilterModal === 'cities') {
+      const cityCounts = {};
+      eventsArray.forEach(event => {
+        const city = extractCityFromVenue(event.venue);
+        if (city) {
+          cityCounts[city] = (cityCounts[city] || 0) + 1;
+        }
+      });
+      const cities = Object.entries(cityCounts)
+        .map(([city, count]) => ({ name: city, count }))
+        .sort((a, b) => b.count - a.count);
+      setAvailableCities(cities);
+    }
+  }, [activeFilterModal]);
+
+  // Update filter count for badge
+  useEffect(() => {
+    let count = 0;
+    if (dateRange.start || dateRange.end) count++;
+    if (selectedGenres.length) count++;
+    if (searchTerm) count++;
+    if (selectedOrganizers.length) count++;
+    if (selectedVenues.length) count++;
+    if (selectedCities.length) count++;
+    if (priceSort !== "none") count++;
+    if (showStarredOnly) count++;
+    
+    setFilterCount(count);
+  }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
+
+  // Optimized favoriting to avoid unnecessary array copies
+  const handleFavoriteEvent = useCallback(async (event, index, e) => {
+    e.stopPropagation();
+    
+    if (isLoggedIn) {
+      const phoneNumber = actualPhoneNumber || authPhoneNumber;
+      
+      if (!phoneNumber) {
+        toast.error('Phone number not available. Please try logging in again.');
+        console.error('No phone number available for favoriting event');
+        return;
+      }
+      
+      // Immediately update UI for better user experience
+      const wasFavorite = event.is_favorite;
+      
+      // Update the events array directly with mutation to avoid copying the whole array
+      setEvents(prevEvents => {
+        // Directly mutate events array for better performance
+        const updatedEvents = [...prevEvents];
+        const eventIndex = updatedEvents.findIndex(e => 
+          e.event_name === event.event_name &&
+          e.venue === event.venue &&
+          e.date === event.date
+        );
+        
+        if (eventIndex !== -1) {
+          updatedEvents[eventIndex].is_favorite = !wasFavorite;
+        }
+        
+        return updatedEvents;
+      });
+      
+      try {
+        // Determine if we're favoriting or unfavoriting
+        const action = wasFavorite ? 'unstar_event' : 'star_event';
+        const url = `${apiUrl}/${action}`;
+        
+        // Create an object with essential event metadata for matching
+        const eventMetadata = {
+          event_name: event.event_name,
+          venue: event.venue,
+          date: event.date,
+          raw_date: event.raw_date,
+          organizer: event.organizer || "",
+          ticket_info: event.ticket_info || "",
+          genre: event.genre || "",
+          event_url: event.event_url || ""
+        };
+        
+        const requestBody = { 
+          phone_number: phoneNumber,
+          event_metadata: eventMetadata
+        };
+        
+        // For star_event, include the full event
+        if (action === 'star_event') {
+          requestBody.event = event;
+        }
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          // Revert UI change if API call failed
+          setEvents(prevEvents => {
+            const revertedEvents = [...prevEvents];
+            const eventIndex = revertedEvents.findIndex(e => 
+              e.event_name === event.event_name &&
+              e.venue === event.venue &&
+              e.date === event.date
+            );
+            
+            if (eventIndex !== -1) {
+              revertedEvents[eventIndex].is_favorite = wasFavorite;
+            }
+            
+            return revertedEvents;
+          });
+          
+          toast.error(data.message || `Failed to ${action} event`);
+        } else {
+          // Success case - show a success message
+          toast.success(wasFavorite 
+            ? 'Event removed from favorites!' 
+            : 'Event added to favorites!');
+            
+          // Force re-render by creating a new events array with the updated favorite status
+          setEvents(prevEvents => {
+            return [...prevEvents];
+          });
+        }
+      } catch (error) {
+        console.error('Error toggling favorite status:', error);
+        
+        // Revert UI change if there was an error
+        setEvents(prevEvents => {
+          const revertedEvents = [...prevEvents];
+          const eventIndex = revertedEvents.findIndex(e => 
+            e.event_name === event.event_name &&
+            e.venue === event.venue &&
+            e.date === event.date
+          );
+          
+          if (eventIndex !== -1) {
+            revertedEvents[eventIndex].is_favorite = wasFavorite;
+          }
+          
+          return revertedEvents;
+        });
+        
+        toast.error(`Failed to ${wasFavorite ? 'unstar' : 'star'} event`);
+      }
+    } else {
+      toast.error('Please log in to favorite events');
+    }
+  }, [isLoggedIn, apiUrl, toast, actualPhoneNumber, authPhoneNumber]);
+
+  // Debug logging for favorited events filtering
+  useEffect(() => {
+    if (showStarredOnly) {
+      const favoritedCount = events.filter(event => event.is_favorite === true).length;
+      console.log('Current favorited events count:', favoritedCount);
+    }
+  }, [showStarredOnly, events, isLoggedIn]);
+
+  // Function to share favorited events
+  const handleShareFavorites = async () => {
+    try {
+      setSharing(true);
+      // Use the getPhoneHash method that we already destructured
+      const hashToUse = await getPhoneHash();
+      
+      if (!hashToUse) {
+        throw new Error('Could not generate a valid hash for sharing');
+      }
+
+      // Create share URL with the resolved hash
+      const shareUrl = `${window.location.origin}/favorited_events/${hashToUse}`;
+      
+      // Try to use native sharing if available
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'My Favorited Events',
+            text: `Check out ${userName || 'my'} favorited events on SproutMe!`,
+            url: shareUrl
+          });
+        } catch (err) {
+          console.error('Error sharing:', err);
+          // Fallback to copying to clipboard
+          await copyToClipboard(shareUrl);
+          toast.success('Share link copied to clipboard!');
+        }
+      } else {
+        // Fallback for browsers without native sharing
+        await copyToClipboard(shareUrl);
+        toast.success('Share link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Error generating share link:', error);
+      toast.error('Failed to generate share link. Please try again.');
+    } finally {
+      setSharing(false);
+    }
   };
 
-  async function fetchEvents() {
-    if (!phoneHash) {
-      setError("Phone hash not provided");
-      setLoading(false);
-      return;
+  // Helper function to copy text to clipboard
+  const copyToClipboard = async (text) => {
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        console.error('Failed to copy: ', err);
+        return false;
+      }
+    } else {
+      // Fallback method for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+      } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+        document.body.removeChild(textArea);
+        return false;
+      }
+    }
+  };
+
+  // Check which events are favorited for the current user - optimized
+  const checkFavoritedEvents = useCallback(async (eventsData) => {
+    // Use actualPhoneNumber if available, otherwise fall back to authPhoneNumber
+    const phoneNumber = actualPhoneNumber || authPhoneNumber;
+    
+    if (!isLoggedIn || !phoneNumber) {
+      return eventsData; // Return original data if not logged in or no phone number
     }
 
     try {
-      const url = `${apiUrl}/events?phone_hash=${encodeURIComponent(phoneHash)}`;
+      const url = `${apiUrl}/favorite_events_by_phone?phone_number=${encodeURIComponent(phoneNumber)}`;
       
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`Server responded with status ${response.status} when fetching favorited events`);
+        return eventsData; // Return original data on API error
+      }
+
+      // Safely parse the JSON response
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Error parsing favorited events response:', parseError);
+        return eventsData; // Return original data on parse error
+      }
+      
+      // The server returns data in data.data format based on your server implementation
+      const favoritedEvents = data.data || [];
+      
+      if (favoritedEvents.length === 0) {
+        return eventsData;
+      }
+      
+      // Use Map for O(1) lookups instead of array.some() which is O(n)
+      const favoritedMap = new Map();
+      favoritedEvents.forEach(favEvent => {
+        // Create a unique key for each event
+        const key = `${favEvent.event_name}|${favEvent.venue}|${favEvent.date}`;
+        favoritedMap.set(key, true);
+      });
+      
+      // Mark events as favorited using the map for fast lookups
+      return eventsData.map(event => {
+        const key = `${event.event_name}|${event.venue}|${event.date}`;
+        return {
+          ...event,
+          is_favorite: favoritedMap.has(key)
+        };
+      });
+    } catch (error) {
+      console.error("Error checking favorited events:", error);
+      return eventsData; // Return original data on error
+    }
+  }, [apiUrl, isLoggedIn, actualPhoneNumber, authPhoneNumber]);
+
+  // Fetch events - optimized
+  async function fetchEvents() {
+    try {
+      const url = `${apiUrl}/events`;
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -236,9 +638,18 @@ useEffect(() => {
       }
 
       const data = await response.json();
-      const eventsData = data.data || [];
-      setEvents(eventsData);
-      setFilteredEvents(eventsData);
+      let eventsData = data.data || [];
+      
+      // Process events to replace empty genres with 'None'
+      eventsData = eventsData.map(event => ({
+        ...event,
+        genre: event.genre && event.genre.trim() ? event.genre : 'None'
+      }));
+      
+      // Check which events are favorited
+      const eventsWithFavorites = await checkFavoritedEvents(eventsData);
+      
+      setEvents(eventsWithFavorites);
       
       if (data.phoneNumber) {
         setActualPhoneNumber(data.phoneNumber);
@@ -252,37 +663,6 @@ useEffect(() => {
     }
   }
 
-  async function getNameByPhoneHash(phoneHash) {
-    const url = `${apiUrl}/get_name`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone_hash: phoneHash }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setName(data.name + "'s");
-      } else {
-        throw new Error(data.error || 'Error retrieving name');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      return null;
-    }
-  }
-
-  // Helper function to toggle item in array
-  const toggleArrayItem = (array, item) => {
-    return array.includes(item)
-      ? array.filter(i => i !== item)
-      : [...array, item];
-  };
-
   // Reset all filters
   const resetFilters = () => {
     setDateRange({ start: "", end: "" });
@@ -292,428 +672,181 @@ useEffect(() => {
     setSelectedVenues([]);
     setSelectedCities([]);
     setPriceSort("none");
+    setShowStarredOnly(false);
     setActiveFilterModal(null);
+    setCurrentPage(1); // Reset to first page when filters are reset
   };
 
   // Open filter modal
-  const openFilterModal = (modalName) => {
+  const openFilterModal = useCallback((modalName) => {
     if (activeFilterModal === modalName) {
       setActiveFilterModal(null);
     } else {
       setActiveFilterModal(modalName);
     }
-  };
+  }, [activeFilterModal]);
+
+  // Memory cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear large arrays when component unmounts
+      setEvents([]);
+      setAvailableGenres([]);
+      setAvailableOrganizers([]);
+      setAvailableVenues([]);
+      setAvailableCities([]);
+    };
+  }, []);
 
   return (
-    <div className="w-screen h-screen flex flex-col items-center bg-gray-50 overflow-y-scroll">
-      <div className="text-3xl md:text-4xl font-bold text-green-600 mb-2 mt-4 md:mt-6">Upcoming Events</div>
-      <div className="text-lg md:text-xl font-medium text-gray-700 mb-2 px-4 text-center">
-        {actualPhoneNumber ? `Events for ${actualPhoneNumber}` : `${name} upcoming events`}
-      </div>
-      
-      {/* Filters Toggle Button */}
-      <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-4">
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-          </svg>
-          Filters
-          {filterCount > 0 && (
-            <span className="ml-2 bg-white text-green-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-              {filterCount}
+    <div className={`w-screen min-h-screen flex flex-col items-center ${
+      darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'
+    } transition-colors duration-300`}>
+      {/* Header */}
+      <div className={`w-full ${
+        darkMode ? 'bg-gray-800 shadow-gray-900' : 'bg-white shadow-gray-200'
+      } shadow-md p-4 flex justify-between items-center mb-6 transition-colors duration-300`}>
+        <div className="flex items-center">
+          <img src={sproutIcon} alt="Sprout Logo" className="h-8 w-8 mr-2" />
+          <span className={`font-bold text-xl ${
+            darkMode ? 'text-green-400' : 'text-green-600'
+          } transition-colors duration-300`}>SproutMe</span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <ThemeToggle />
+          
+          {/* Welcome Message */}
+          {isLoggedIn && (
+            <span className={`text-sm ${
+              darkMode ? 'text-gray-300' : 'text-gray-600'
+            } hidden md:inline-block mr-2 transition-colors duration-300`}>
+              Welcome, {userName || "User"}
             </span>
           )}
-        </button>
-        
-        {filterCount > 0 && (
-          <button
-            onClick={resetFilters}
-            className="text-green-600 font-medium bg-white"
+          
+          {/* Share Favorites Button */}
+          {isLoggedIn && (
+            <button
+              onClick={handleShareFavorites}
+              className={`${
+                darkMode 
+                  ? 'bg-blue-800 hover:bg-blue-700 text-blue-100' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              } font-medium py-2 md:px-4 px-2 text-sm md:text-base rounded-lg transition-colors mr-2 flex items-center`}
+              disabled={sharing}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span className="hidden sm:inline">{sharing ? 'Generating...' : 'Share Favorites'}</span>
+              <span className="sm:hidden">Share</span>
+            </button>
+          )}
+          
+          {/* Filter Counter Badge */}
+          {filterCount > 0 && (
+            <button 
+              onClick={resetFilters}
+              className={`${
+                darkMode 
+                  ? 'bg-amber-700 hover:bg-amber-600 text-amber-100' 
+                  : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+              } font-medium py-2 px-4 rounded-lg transition-colors mr-2`}
+            >
+              Clear All
+            </button>
+          )}
+          
+          {/* Auth Button */}
+          <button 
+            onClick={() => isLoggedIn ? logout() : navigate('/login')}
+            className={`${
+              isLoggedIn 
+                ? darkMode ? 'bg-red-700 hover:bg-red-600' : 'bg-red-500 hover:bg-red-600' 
+                : darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-500 hover:bg-purple-600'
+            } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
           >
-            Clear All
+            {isLoggedIn ? 'Logout' : 'Login'}
           </button>
-        )}
+        </div>
       </div>
       
-      {/* Mobile-Friendly Filters */}
-      {showFilters && (
-        <div className="w-full max-w-5xl px-4 mb-6 ">
-          {/* Top filters that are always visible */}
-          <div className="bg-white rounded-xl shadow-md p-4 mb-2 border border-green-200 ">
-            {/* Date Range Filter */}
-            <div className="mb-4 text-black bg-white">
-              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Date Range</label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-gray-500 text-black bg-white mb-1">Start Date</div>
-                  <input
-                    type="date"
-                    className="border rounded-md p-2 w-full text-black bg-white"
-                    value={dateRange.start}
-                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1 text-black bg-white">End Date</div>
-                  <input
-                    type="date"
-                    className="border rounded-md p-2 w-full text-black bg-white"
-                    value={dateRange.end}
-                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Event Name Search */}
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Event Name</label>
-              <input
-                type="text"
-                className="border rounded-md p-2 w-full text-black bg-white"
-                placeholder="Search by event name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            
-            {/* Price Sort */}
-            <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2 text-black bg-white">Sort by Price</label>
-              <select
-                className="border rounded-md p-2 w-full text-black bg-white"
-                value={priceSort}
-                onChange={(e) => setPriceSort(e.target.value)}
-              >
-                <option value="none">No Sorting</option>
-                <option value="asc">Price: Low to High</option>
-                <option value="desc">Price: High to Low</option>
-              </select>
-            </div>
-          </div>
-          
-          {/* Category filter buttons */}
-          <div className="grid grid-cols-4 gap-2 mb-2 text-black bg-white">
-            <button
-              onClick={() => openFilterModal("genres")}
-              className={`p-3 rounded-lg flex  border-2 border-purple-300 border-dotted flex-col items-center text-black justify-center ${
-                selectedGenres.length > 0 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-white shadow-md'
-              }`}
-            >
-              <span className="text-sm font-bold">Genres</span>
-              {selectedGenres.length > 0 && (
-                <span className="text-xs mt-1">
-                  {selectedGenres.length} selected
-                </span>
-              )}
-            </button>
-            
-            <button
-              onClick={() => openFilterModal("organizers")}
-              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted items-center text-black text-black justify-center ${
-                selectedOrganizers.length > 0 
-                  ? 'bg-green-500 ' 
-                  : 'bg-white shadow-md'
-              }`}
-            >
-              <span className="text-sm font-bold">Organizers</span>
-              {selectedOrganizers.length > 0 && (
-                <span className="text-xs mt-1">
-                  {selectedOrganizers.length} selected
-                </span>
-              )}
-            </button>
-            
-            <button
-              onClick={() => openFilterModal("venues")}
-              className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted text-black items-center justify-center ${
-                selectedVenues.length > 0 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-white shadow-md'
-              }`}
-            >
-              <span className="text-sm font-bold">Venues</span>
-              {selectedVenues.length > 0 && (
-                <span className="text-xs mt-1">
-                  {selectedVenues.length} selected
-                </span>
-              )}
-            </button>
-
-          <button
-            onClick={() => openFilterModal("cities")}
-            className={`p-3 rounded-lg flex flex-col border-2 border-purple-300 border-dotted text-black items-center justify-center ${
-              selectedCities.length > 0 
-                ? 'bg-green-500 text-white' 
-                : 'bg-white shadow-md'
-            }`}
+      {/* Filter section */}
+      <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-4">
+        <div className="flex items-center">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
           >
-            <span className="text-sm font-bold">Cities</span>
-            {selectedCities.length > 0 && (
-              <span className="text-xs mt-1">
-                {selectedCities.length} selected
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+            </svg>
+            Filters
+            {filterCount > 0 && (
+              <span className="ml-2 bg-white text-green-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                {filterCount}
               </span>
             )}
           </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Filter Modals */}
-      {activeFilterModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center ">
-                  <h3 className="font-bold text-lg text-black bg-white">
-        {activeFilterModal === "genres" ? "Select Genres" : 
-        activeFilterModal === "organizers" ? "Select Organizers" : 
-        activeFilterModal === "venues" ? "Select Venues" :
-        "Select Cities"}
-      </h3>
-              <button 
-                onClick={() => setActiveFilterModal(null)}
-                className="text-gray-500 bg-white hover:text-gray-700"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="overflow-y-auto p-4 flex-grow">
-            {activeFilterModal === "genres" && (
-  <div className="space-y-2 max-h-96 text-black bg-white">
-    {availableGenres.map((genre) => (
-      <div 
-        key={genre.name}
-        onClick={() => setSelectedGenres(toggleArrayItem(selectedGenres, genre.name))}
-        className={`p-3 rounded-lg flex items-center justify-between ${
-          selectedGenres.includes(genre.name)
-            ? 'bg-green-100 border border-green-500'
-            : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <div className="flex items-center">
-          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-            selectedGenres.includes(genre.name)
-              ? 'bg-green-500 border-green-500'
-              : 'border-gray-400'
-          }`}>
-            {selectedGenres.includes(genre.name) && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            )}
-          </div>
-          <span>{genre.name}</span>
-        </div>
-        <span className="text-gray-500 text-sm">{genre.count}</span>
-      </div>
-    ))}
-  </div>
-)}
-
-{activeFilterModal === "cities" && (
-  <div className="space-y-2 max-h-96 text-black bg-white">
-    {availableCities.map((city) => (
-      <div 
-        key={city.name}
-        onClick={() => setSelectedCities(toggleArrayItem(selectedCities, city.name))}
-        className={`p-3 rounded-lg flex items-center justify-between ${
-          selectedCities.includes(city.name)
-            ? 'bg-green-100 border border-green-500'
-            : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <div className="flex items-center">
-          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-            selectedCities.includes(city.name)
-              ? 'bg-green-500 border-green-500'
-              : 'border-gray-400'
-          }`}>
-            {selectedCities.includes(city.name) && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            )}
-          </div>
-          <span>{city.name}</span>
-        </div>
-        <span className="text-gray-500 text-sm">{city.count}</span>
-      </div>
-    ))}
-  </div>
-)}
-
-{activeFilterModal === "organizers" && (
-  <div className="space-y-2 max-h-96 text-black bg-white">
-    {availableOrganizers.map((organizer) => (
-      <div 
-        key={organizer.name}
-        onClick={() => setSelectedOrganizers(toggleArrayItem(selectedOrganizers, organizer.name))}
-        className={`p-3 rounded-lg flex items-center justify-between ${
-          selectedOrganizers.includes(organizer.name)
-            ? 'bg-green-100 border border-green-500'
-            : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <div className="flex items-center">
-          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-            selectedOrganizers.includes(organizer.name)
-              ? 'bg-green-500 border-green-500'
-              : 'border-gray-400'
-          }`}>
-            {selectedOrganizers.includes(organizer.name) && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            )}
-          </div>
-          <span>{organizer.name || "Unknown"}</span>
-        </div>
-        <span className="text-gray-500 text-sm">{organizer.count}</span>
-      </div>
-    ))}
-  </div>
-)}
-
-{activeFilterModal === "venues" && (
-  <div className="space-y-2 max-h-96 text-black bg-white">
-    {availableVenues.map((venue) => (
-      <div 
-        key={venue.name}
-        onClick={() => setSelectedVenues(toggleArrayItem(selectedVenues, venue.name))}
-        className={`p-3 rounded-lg flex items-center justify-between ${
-          selectedVenues.includes(venue.name)
-            ? 'bg-green-100 border border-green-500'
-            : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <div className="flex items-center">
-          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-            selectedVenues.includes(venue.name)
-              ? 'bg-green-500 border-green-500'
-              : 'border-gray-400'
-          }`}>
-            {selectedVenues.includes(venue.name) && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            )}
-          </div>
-          <span>{venue.name}</span>
-        </div>
-        <span className="text-gray-500 text-sm">{venue.count}</span>
-      </div>
-    ))}
-  </div>
-)}
-            </div>
-            
-            <div className="p-4 border-t flex justify-between">
-                      <button
-            onClick={() => {
-              if (activeFilterModal === "genres") setSelectedGenres([]);
-              if (activeFilterModal === "organizers") setSelectedOrganizers([]);
-              if (activeFilterModal === "venues") setSelectedVenues([]);
-              if (activeFilterModal === "cities") setSelectedCities([]);
-            }}
-            className="text-gray-600 font-medium bg-white py-2 px-4"
-          >
-            Clear
-          </button>
-              <button
-                onClick={() => setActiveFilterModal(null)}
-                className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-6 rounded-lg"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Event Count */}
-      <div className="w-full max-w-5xl px-4 mb-2">
-        <div className="text-gray-600 text-sm">
-          Showing {filteredEvents.length} of {events.length} events
         </div>
       </div>
       
-      {/* Events List */}
+      <FilterSection 
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        filterCount={filterCount}
+        resetFilters={resetFilters}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        priceSort={priceSort}
+        setPriceSort={setPriceSort}
+        selectedGenres={selectedGenres}
+        selectedOrganizers={selectedOrganizers}
+        selectedVenues={selectedVenues}
+        selectedCities={selectedCities}
+        openFilterModal={openFilterModal}
+        events={events}
+        filteredEvents={filteredEvents}
+        showStarredOnly={showStarredOnly}
+        setShowStarredOnly={setShowStarredOnly}
+        isLoggedIn={isLoggedIn}
+        sharing={sharing}
+        handleShareFavorites={handleShareFavorites}
+      />
+      
+      <FilterModal
+        activeFilterModal={activeFilterModal}
+        setActiveFilterModal={setActiveFilterModal}
+        availableGenres={availableGenres}
+        availableOrganizers={availableOrganizers}
+        availableVenues={availableVenues}
+        availableCities={availableCities}
+        selectedGenres={selectedGenres}
+        selectedOrganizers={selectedOrganizers}
+        selectedVenues={selectedVenues}
+        selectedCities={selectedCities}
+        setSelectedGenres={setSelectedGenres}
+        setSelectedOrganizers={setSelectedOrganizers}
+        setSelectedVenues={setSelectedVenues}
+        setSelectedCities={setSelectedCities}
+        toggleArrayItem={toggleArrayItem}
+      />
+      
       <div className="w-full max-w-5xl px-4 pb-6">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-100 border-2 border-red-300 text-red-700 p-4 rounded-lg">
-            {error}
-          </div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="bg-yellow-50 border-2 border-yellow-300 text-yellow-700 p-6 rounded-xl text-center">
-            <p className="text-lg font-medium">No events found matching your filters.</p>
-            <p className="mt-2">Try adjusting your filters to see more results.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredEvents.map((event, index) => (
-              <div
-                key={index}
-                className="bg-white p-4 rounded-xl shadow-md border border-green-200 transition-all hover:shadow-lg hover:border-green-400"
-              >
-                <h3 className="text-black mb-2 font-extrabold font-prosto text-black">{event.event_name.trim()}</h3>
-                
-                <div className="space-y-1 mb-3 text-sm">
-                  <div className="flex">
-                    <span className="font-medium text-gray-600 w-20">Date:</span>
-                    <span className="text-gray-800">{event.date.trim()}</span>
-                  </div>
-                  
-                  <div className="flex">
-                    <span className="font-medium text-gray-600 w-20">Venue:</span>
-                    <span className="text-gray-800">{event.venue.trim()}</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center">
-                    <span className="font-medium text-gray-600 w-20">Genre:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {event.genre.split(', ').map((g, i) => (
-                        <span key={i} className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs">{g.trim()}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex">
-                    <span className="font-medium text-gray-600 w-20">Tickets:</span>
-                    <span className="text-gray-800">{event.ticket_info.trim()}</span>
-                  </div>
-
-                  <div className="flex">
-                    <span className="font-medium text-gray-600 w-20">Organizer:</span>
-                    <span className="text-gray-800">{event.organizer.trim() || "N/A"}</span>
-                  </div>
-                </div>
-                
-                {event.event_url && (
-                  <a
-                    href={event.event_url.trim()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full text-center bg-green-500 hover:bg-green-600 hover:text-white text-white font-medium py-2 rounded-lg transition-colors"
-                  >
-                    View Event
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <EventList
+          loading={loading}
+          error={error}
+          filteredEvents={filteredEvents}
+          displayedEvents={displayedEvents}
+          currentPage={currentPage}
+          eventsPerPage={eventsPerPage}
+          onPageChange={setCurrentPage}
+          onFavoriteEvent={handleFavoriteEvent}
+          showStarredOnly={showStarredOnly}
+        />
       </div>
     </div>
   );

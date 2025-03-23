@@ -29,6 +29,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Add smooth transitions for theme changes */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -45,6 +52,15 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: 'FreePixel', sans-serif;
+}
+
+/* Support for dark mode with Tailwind */
+html.dark {
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: light;
 }
 
 h1 {

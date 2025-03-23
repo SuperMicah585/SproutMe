@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EnterButton from './Components/EnterButton';
 import sproutIcon from './Components/sprout_icon.png';
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "./Components/ToastNotification";
+import { useAuth } from "../context/AuthContext";
 
 const NewUserPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -10,7 +11,17 @@ const NewUserPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const location = useLocation();
-  const { phoneNumber } = location.state || {}; // Get phoneNumber from navigation state
+  const { phoneNumber: locationPhoneNumber } = location.state || {}; // Get phoneNumber from navigation state
+  const { phoneNumber: authPhoneNumber, updateName, isLoggedIn } = useAuth();
+  
+  const phoneNumber = locationPhoneNumber || authPhoneNumber;
+  
+  // Redirect to login if not logged in
+  useEffect(() => {
+    if (!isLoggedIn && !locationPhoneNumber) {
+      navigate('/');
+    }
+  }, [isLoggedIn, locationPhoneNumber, navigate]);
 
   const handleInputChange = (e) => {
     setInputValue(e.target.value);
@@ -23,7 +34,9 @@ const NewUserPage = () => {
 
       if (updateResponse.success) {
         toast.success('Name updated successfully!');
-        navigate("/dashboard", { state: { phoneNumber: phoneNumber } });
+        // Update the name in auth context
+        updateName(inputValue);
+        navigate("/events");
       } else {
         toast.error('Failed to update name. Please try again.');
       }

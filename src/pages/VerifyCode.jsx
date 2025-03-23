@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import EnterButton from './Components/EnterButton';
 import { useNavigate, useLocation } from "react-router-dom";
-import {useToast} from "./Components/ToastNotification"
+import { useToast } from "./Components/ToastNotification";
+import { useAuth } from "../context/AuthContext";
+import { hashPhoneNumber } from "../components/events/eventUtils";
+
 const VerifyCode = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
   const [inputValue, setInputValue] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-    const toast = useToast();
+  const toast = useToast();
+  const { login } = useAuth();
   const phoneNumber = location.state?.phoneNumber || "Unknown Number"; // Retrieve phone number from state
 
 
@@ -91,13 +95,19 @@ const VerifyCode = () => {
           const checkUserData = await checkUserResponse.json();
   
           if (checkUserData.success) {
+            // Generate phone hash for authentication
+            const phoneHashValue = await hashPhoneNumber(phoneNumber);
+            
+            // Log the user in using AuthContext - now this is async
+            await login(phoneNumber, phoneHashValue, checkUserData.data?.name || null);
+            
             // Check the user data's name field to navigate accordingly
             if (checkUserData.data && checkUserData.data.name === null) {
               // If name is null, navigate to the NewUserPage
               navigate("/new-user", { state: { phoneNumber: phoneNumber } });
             } else {
-              // If name is not null, navigate to the dashboard
-              navigate("/dashboard", { state: { phoneNumber: phoneNumber } });
+              // If name is not null, navigate to the dashboard or events page
+              navigate("/events");
             }
           } else {
             // Handle failure in checking the user name
@@ -107,7 +117,7 @@ const VerifyCode = () => {
           toast.error("Something went wrong");
         }
       } else {
-        toast.success("Valid Code!");
+        toast.error("Invalid Code!");
       }
     } catch (error) {
       toast.error("Please enter a valid code");

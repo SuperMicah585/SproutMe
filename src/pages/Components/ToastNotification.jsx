@@ -2,14 +2,29 @@ import React, { useState, useEffect } from 'react';
 
 // Individual Toast component
 const Toast = ({ message, type, onClose }) => {
-  const bgColor = type === 'success' ? 'bg-green-100 border-green-500' : 'bg-red-100 border-red-500';
-  const textColor = type === 'success' ? 'text-green-800' : 'text-red-800';
+  let bgColor, textColor;
+  
+  switch (type) {
+    case 'success':
+      bgColor = 'bg-green-100 border-green-500';
+      textColor = 'text-green-800';
+      break;
+    case 'warning':
+      bgColor = 'bg-yellow-100 border-yellow-500';
+      textColor = 'text-yellow-800';
+      break;
+    case 'error':
+    default:
+      bgColor = 'bg-red-100 border-red-500';
+      textColor = 'text-red-800';
+      break;
+  }
   
   return (
     <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg border-l-4 ${bgColor} ${textColor} z-50`}>
       <div className="flex items-start justify-center">
         <p>{message}</p>
-        <div onClick={onClose} className={`cursor-pointer ml-4 ${bgColor}`}>×</div>
+        <div onClick={onClose} className={`cursor-pointer ml-4 ${textColor}`}>×</div>
       </div>
     </div>
   );
@@ -59,6 +74,13 @@ const useToast = () => {
     }));
   };
   
+  const warning = (message) => {
+    console.log('Warning toast:', message);
+    window.dispatchEvent(new CustomEvent('add-toast', { 
+      detail: { message, type: 'warning' } 
+    }));
+  };
+  
   const error = (message) => {
     console.log('Error toast:', message);
     window.dispatchEvent(new CustomEvent('add-toast', { 
@@ -66,7 +88,7 @@ const useToast = () => {
     }));
   };
   
-  return { success, error };
+  return { success, warning, error };
 };
 
 export { ToastContainer, useToast };
