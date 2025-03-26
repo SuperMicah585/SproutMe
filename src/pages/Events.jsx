@@ -26,21 +26,11 @@ const EventsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   
-  // Track page view when component mounts and verify analytics
+  // Track page view when component mounts
   useEffect(() => {
-    // Verify analytics is working
-    const analyticsStatus = verifyAnalytics();
-    console.log("Analytics status:", analyticsStatus);
-    
     // Track page view
     trackPageView('/events', 'Events Page');
-    
-    // Track additional test event
-    trackEvent('visit_events_page', {
-      loggedIn: isLoggedIn,
-      timestamp: new Date().toISOString()
-    });
-  }, [isLoggedIn]);
+  }, []);
   
   // Refs to prevent unnecessary refetching
   const hasLoadedInitialData = useRef(false);
@@ -83,14 +73,12 @@ const EventsPage = () => {
     // Only run once on mount or when phone hash changes
     const fetchData = async () => {
       if (!hasLoadedInitialData.current) {
-        console.log("Initial fetch events call");
         await fetchEvents();
         hasLoadedInitialData.current = true;
       } else if (
         urlPhoneHash !== prevUrlPhoneHash.current || 
         authPhoneHash !== prevAuthPhoneHash.current
       ) {
-        console.log("Hash change fetch events call");
         await fetchEvents();
       }
       
@@ -107,7 +95,6 @@ const EventsPage = () => {
 
   // Use useMemo to compute filtered events instead of storing in state
   const filteredEvents = useMemo(() => {
-    console.log('Computing filtered events');
     let result = events;
     
     // Apply date range filter
@@ -411,7 +398,6 @@ const EventsPage = () => {
       
       if (!phoneNumber) {
         toast.error('Phone number not available. Please try logging in again.');
-        console.error('No phone number available for favoriting event');
         return;
       }
       
@@ -502,8 +488,6 @@ const EventsPage = () => {
           });
         }
       } catch (error) {
-        console.error('Error toggling favorite status:', error);
-        
         // Revert UI change if there was an error
         setEvents(prevEvents => {
           const revertedEvents = [...prevEvents];
@@ -526,14 +510,6 @@ const EventsPage = () => {
       toast.error('Please log in to favorite events');
     }
   }, [isLoggedIn, apiUrl, toast, actualPhoneNumber, authPhoneNumber]);
-
-  // Debug logging for favorited events filtering
-  useEffect(() => {
-    if (showStarredOnly) {
-      const favoritedCount = events.filter(event => event.is_favorite === true).length;
-      console.log('Current favorited events count:', favoritedCount);
-    }
-  }, [showStarredOnly, events, isLoggedIn]);
 
   // Function to share favorited events
   const handleShareFavorites = async () => {
@@ -558,7 +534,6 @@ const EventsPage = () => {
             url: shareUrl
           });
         } catch (err) {
-          console.error('Error sharing:', err);
           // Fallback to copying to clipboard
           await copyToClipboard(shareUrl);
           toast.success('Share link copied to clipboard!');
@@ -569,7 +544,6 @@ const EventsPage = () => {
         toast.success('Share link copied to clipboard!');
       }
     } catch (error) {
-      console.error('Error generating share link:', error);
       toast.error('Failed to generate share link. Please try again.');
     } finally {
       setSharing(false);
@@ -583,7 +557,6 @@ const EventsPage = () => {
         await navigator.clipboard.writeText(text);
         return true;
       } catch (err) {
-        console.error('Failed to copy: ', err);
         return false;
       }
     } else {
@@ -600,7 +573,6 @@ const EventsPage = () => {
         document.body.removeChild(textArea);
         return successful;
       } catch (err) {
-        console.error('Fallback: Oops, unable to copy', err);
         document.body.removeChild(textArea);
         return false;
       }
@@ -627,7 +599,6 @@ const EventsPage = () => {
       });
 
       if (!response.ok) {
-        console.error(`Server responded with status ${response.status} when fetching favorited events`);
         return eventsData; // Return original data on API error
       }
 
@@ -636,7 +607,6 @@ const EventsPage = () => {
       try {
         data = await response.json();
       } catch (parseError) {
-        console.error('Error parsing favorited events response:', parseError);
         return eventsData; // Return original data on parse error
       }
       
@@ -664,7 +634,6 @@ const EventsPage = () => {
         };
       });
     } catch (error) {
-      console.error("Error checking favorited events:", error);
       return eventsData; // Return original data on error
     }
   }, [apiUrl, isLoggedIn, actualPhoneNumber, authPhoneNumber]);
@@ -704,7 +673,6 @@ const EventsPage = () => {
       
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching events:", error);
       setError("Failed to fetch events. Please try again later.");
       setLoading(false);
     }

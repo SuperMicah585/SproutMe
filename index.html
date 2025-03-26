@@ -10,19 +10,9 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-65SH3S3S35"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){
-        dataLayer.push(arguments);
-        console.log('Google Analytics event:', arguments);
-      }
+      function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-65SH3S3S35', {
-        'debug_mode': true,
-        'send_page_view': false // We'll handle page views manually
-      });
-      
-      // Make sure gtag is available for debugging
-      console.log('Google Analytics initialized with ID: G-65SH3S3S35');
-      console.log('gtag available on window object:', typeof window.gtag === 'function');
+      gtag('config', 'G-65SH3S3S35');
     </script>
   </head>
   <body>

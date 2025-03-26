@@ -1,3 +1,6 @@
+// Import utility to prevent WebSocket errors in production
+import './utils/disableHmrInProd';
+
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';

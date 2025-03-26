@@ -15,10 +15,6 @@ const EnterNumber = () => {
   
   // Track page view when component mounts
   useEffect(() => {
-    // Verify analytics is working
-    const analyticsStatus = verifyAnalytics();
-    console.log("Login page analytics status:", analyticsStatus);
-    
     // Track page view
     trackPageView('/login', 'Login Page');
   }, []);
@@ -94,7 +90,6 @@ const EnterNumber = () => {
    
         return data;
     } catch (error) {
-        console.error("Error validating phone number:", error);
         return null;
     }
 }
@@ -117,10 +112,8 @@ async function send2fa(phoneNumber) {
       }
 
       const data = await response.json();
-      console.log("Response:", data);
       return data;
   } catch (error) {
-      console.error("Error validating phone number:", error);
       return null;
   }
 }
