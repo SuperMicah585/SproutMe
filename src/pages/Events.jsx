@@ -25,6 +25,16 @@ const EventsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   
+  // Track page view when component mounts
+  useEffect(() => {
+    if (window.gtag) {
+      gtag('event', 'page_view', {
+        'page_title': 'Events Page',
+        'page_path': '/events'
+      });
+    }
+  }, []);
+  
   // Refs to prevent unnecessary refetching
   const hasLoadedInitialData = useRef(false);
   const prevUrlPhoneHash = useRef(urlPhoneHash);
@@ -354,6 +364,36 @@ const EventsPage = () => {
     
     setFilterCount(count);
   }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
+
+  // Track filter changes
+  useEffect(() => {
+    // Don't track on initial render
+    if (hasLoadedInitialData.current && window.gtag) {
+      gtag('event', 'filter_change', {
+        'filter_count': filterCount,
+        'active_filters': {
+          'date_range': !!dateRange.start || !!dateRange.end,
+          'genres': selectedGenres.length > 0,
+          'search': searchTerm.trim() !== '',
+          'organizers': selectedOrganizers.length > 0,
+          'venues': selectedVenues.length > 0,
+          'cities': selectedCities.length > 0,
+          'price_sort': priceSort !== 'none',
+          'starred_only': showStarredOnly
+        }
+      });
+    }
+  }, [
+    dateRange, 
+    selectedGenres, 
+    searchTerm, 
+    selectedOrganizers, 
+    selectedVenues, 
+    selectedCities, 
+    priceSort, 
+    showStarredOnly,
+    filterCount
+  ]);
 
   // Optimized favoriting to avoid unnecessary array copies
   const handleFavoriteEvent = useCallback(async (event, index, e) => {

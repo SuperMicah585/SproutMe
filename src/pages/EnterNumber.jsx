@@ -12,6 +12,16 @@ const EnterNumber = () => {
   const toast = useToast();
   const { isLoggedIn } = useAuth();
   
+  // Track page view when component mounts
+  useEffect(() => {
+    if (window.gtag) {
+      gtag('event', 'page_view', {
+        'page_title': 'Login Page',
+        'page_path': '/login'
+      });
+    }
+  }, []);
+  
   // If already logged in, redirect to events page
   useEffect(() => {
     if (isLoggedIn) {
@@ -27,15 +37,41 @@ const EnterNumber = () => {
     if (inputValue.length > 0) {
       const response = await validatePhoneNumber(inputValue, "US");
       if (response.valid === true) {
+        // Track successful phone number submission
+        if (window.gtag) {
+          gtag('event', 'login_attempt', {
+            'method': 'phone_number',
+            'success': true
+          });
+        }
+        
         toast.success('Please input the code sent to your Phone Number');
         await send2fa(response.phone_number);
         
         // Navigate with state
         navigate("/verify", { state: { phoneNumber: response.phone_number } });
       } else {
+        // Track failed phone number submission
+        if (window.gtag) {
+          gtag('event', 'login_attempt', {
+            'method': 'phone_number',
+            'success': false,
+            'error': 'invalid_number'
+          });
+        }
+        
         toast.error('Please enter a valid number');
       }
     } else {
+      // Track empty phone number submission
+      if (window.gtag) {
+        gtag('event', 'login_attempt', {
+          'method': 'phone_number',
+          'success': false,
+          'error': 'empty_input'
+        });
+      }
+      
       toast.error('Please enter a valid number');
     }
   };
