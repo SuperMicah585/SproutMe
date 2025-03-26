@@ -4,6 +4,7 @@ import sproutIcon from './Components/sprout_icon.png';
 import { useNavigate } from "react-router-dom";
 import { useToast } from "./Components/ToastNotification";
 import { useAuth } from "../context/AuthContext";
+import { trackEvent, trackPageView, verifyAnalytics } from "../utils/analytics";
 
 const EnterNumber = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -14,12 +15,12 @@ const EnterNumber = () => {
   
   // Track page view when component mounts
   useEffect(() => {
-    if (window.gtag) {
-      gtag('event', 'page_view', {
-        'page_title': 'Login Page',
-        'page_path': '/login'
-      });
-    }
+    // Verify analytics is working
+    const analyticsStatus = verifyAnalytics();
+    console.log("Login page analytics status:", analyticsStatus);
+    
+    // Track page view
+    trackPageView('/login', 'Login Page');
   }, []);
   
   // If already logged in, redirect to events page
@@ -38,12 +39,10 @@ const EnterNumber = () => {
       const response = await validatePhoneNumber(inputValue, "US");
       if (response.valid === true) {
         // Track successful phone number submission
-        if (window.gtag) {
-          gtag('event', 'login_attempt', {
-            'method': 'phone_number',
-            'success': true
-          });
-        }
+        trackEvent('login_attempt', {
+          'method': 'phone_number',
+          'success': true
+        });
         
         toast.success('Please input the code sent to your Phone Number');
         await send2fa(response.phone_number);
@@ -52,25 +51,21 @@ const EnterNumber = () => {
         navigate("/verify", { state: { phoneNumber: response.phone_number } });
       } else {
         // Track failed phone number submission
-        if (window.gtag) {
-          gtag('event', 'login_attempt', {
-            'method': 'phone_number',
-            'success': false,
-            'error': 'invalid_number'
-          });
-        }
+        trackEvent('login_attempt', {
+          'method': 'phone_number',
+          'success': false,
+          'error': 'invalid_number'
+        });
         
         toast.error('Please enter a valid number');
       }
     } else {
       // Track empty phone number submission
-      if (window.gtag) {
-        gtag('event', 'login_attempt', {
-          'method': 'phone_number',
-          'success': false,
-          'error': 'empty_input'
-        });
-      }
+      trackEvent('login_attempt', {
+        'method': 'phone_number',
+        'success': false,
+        'error': 'empty_input'
+      });
       
       toast.error('Please enter a valid number');
     }

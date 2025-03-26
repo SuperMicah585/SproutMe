@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { trackEvent } from "../../utils/analytics";
 
 const FilterModal = ({
   activeFilterModal,
@@ -94,13 +95,11 @@ const FilterModal = ({
                   onClick={() => {
                     setSelectedGenres(toggleArrayItem(selectedGenres, genre.name));
                     // Track genre selection in Google Analytics
-                    if (window.gtag) {
-                      gtag('event', 'select_filter', {
-                        'filter_type': 'genre',
-                        'filter_value': genre.name,
-                        'action': selectedGenres.includes(genre.name) ? 'deselect' : 'select'
-                      });
-                    }
+                    trackEvent('select_filter', {
+                      'filter_type': 'genre',
+                      'filter_value': genre.name,
+                      'action': selectedGenres.includes(genre.name) ? 'deselect' : 'select'
+                    });
                   }}
                   className={`p-3 rounded-lg flex items-center justify-between ${
                     selectedGenres.includes(genre.name)
@@ -150,13 +149,11 @@ const FilterModal = ({
                   onClick={() => {
                     setSelectedCities(toggleArrayItem(selectedCities, city.name));
                     // Track city selection in Google Analytics
-                    if (window.gtag) {
-                      gtag('event', 'select_filter', {
-                        'filter_type': 'city',
-                        'filter_value': city.name,
-                        'action': selectedCities.includes(city.name) ? 'deselect' : 'select'
-                      });
-                    }
+                    trackEvent('select_filter', {
+                      'filter_type': 'city',
+                      'filter_value': city.name,
+                      'action': selectedCities.includes(city.name) ? 'deselect' : 'select'
+                    });
                   }}
                   className={`p-3 rounded-lg flex items-center justify-between ${
                     selectedCities.includes(city.name)
@@ -206,13 +203,11 @@ const FilterModal = ({
                   onClick={() => {
                     setSelectedOrganizers(toggleArrayItem(selectedOrganizers, organizer.name));
                     // Track organizer selection in Google Analytics
-                    if (window.gtag) {
-                      gtag('event', 'select_filter', {
-                        'filter_type': 'organizer',
-                        'filter_value': organizer.name || "Unknown",
-                        'action': selectedOrganizers.includes(organizer.name) ? 'deselect' : 'select'
-                      });
-                    }
+                    trackEvent('select_filter', {
+                      'filter_type': 'organizer',
+                      'filter_value': organizer.name || "Unknown",
+                      'action': selectedOrganizers.includes(organizer.name) ? 'deselect' : 'select'
+                    });
                   }}
                   className={`p-3 rounded-lg flex items-center justify-between ${
                     selectedOrganizers.includes(organizer.name)
@@ -262,13 +257,11 @@ const FilterModal = ({
                   onClick={() => {
                     setSelectedVenues(toggleArrayItem(selectedVenues, venue.name));
                     // Track venue selection in Google Analytics
-                    if (window.gtag) {
-                      gtag('event', 'select_filter', {
-                        'filter_type': 'venue',
-                        'filter_value': venue.name,
-                        'action': selectedVenues.includes(venue.name) ? 'deselect' : 'select'
-                      });
-                    }
+                    trackEvent('select_filter', {
+                      'filter_type': 'venue',
+                      'filter_value': venue.name,
+                      'action': selectedVenues.includes(venue.name) ? 'deselect' : 'select'
+                    });
                   }}
                   className={`p-3 rounded-lg flex items-center justify-between ${
                     selectedVenues.includes(venue.name)
@@ -418,15 +411,13 @@ const FilterModal = ({
           <button
             onClick={() => {
               // Track filter application in Google Analytics
-              if (window.gtag) {
-                gtag('event', 'apply_filters', {
-                  'filter_type': activeFilterModal,
-                  'filter_count': activeFilterModal === "genres" ? selectedGenres.length :
-                                  activeFilterModal === "cities" ? selectedCities.length :
-                                  activeFilterModal === "organizers" ? selectedOrganizers.length :
-                                  activeFilterModal === "venues" ? selectedVenues.length : 0
-                });
-              }
+              trackEvent('apply_filters', {
+                'filter_type': activeFilterModal,
+                'filter_count': activeFilterModal === "genres" ? selectedGenres.length :
+                                activeFilterModal === "cities" ? selectedCities.length :
+                                activeFilterModal === "organizers" ? selectedOrganizers.length :
+                                activeFilterModal === "venues" ? selectedVenues.length : 0
+              });
               setActiveFilterModal(null);
             }}
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-300"

@@ -16,6 +16,7 @@ import sproutIcon from './Components/sprout_icon.png';
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "./Components/ToastNotification";
+import { trackEvent, trackPageView, verifyAnalytics } from "../utils/analytics";
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -25,15 +26,21 @@ const EventsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   
-  // Track page view when component mounts
+  // Track page view when component mounts and verify analytics
   useEffect(() => {
-    if (window.gtag) {
-      gtag('event', 'page_view', {
-        'page_title': 'Events Page',
-        'page_path': '/events'
-      });
-    }
-  }, []);
+    // Verify analytics is working
+    const analyticsStatus = verifyAnalytics();
+    console.log("Analytics status:", analyticsStatus);
+    
+    // Track page view
+    trackPageView('/events', 'Events Page');
+    
+    // Track additional test event
+    trackEvent('visit_events_page', {
+      loggedIn: isLoggedIn,
+      timestamp: new Date().toISOString()
+    });
+  }, [isLoggedIn]);
   
   // Refs to prevent unnecessary refetching
   const hasLoadedInitialData = useRef(false);
@@ -368,8 +375,8 @@ const EventsPage = () => {
   // Track filter changes
   useEffect(() => {
     // Don't track on initial render
-    if (hasLoadedInitialData.current && window.gtag) {
-      gtag('event', 'filter_change', {
+    if (hasLoadedInitialData.current) {
+      trackEvent('filter_change', {
         'filter_count': filterCount,
         'active_filters': {
           'date_range': !!dateRange.start || !!dateRange.end,
