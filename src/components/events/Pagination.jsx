@@ -31,36 +31,47 @@ const Pagination = memo(({ currentPage, totalItems, itemsPerPage, onPageChange }
     };
   }, [currentPage, totalItems, itemsPerPage]);
   
+  // Scroll to top of page
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }, []);
+  
   // Memoize handlers
   const handlePrevious = useCallback(() => {
     if (currentPage > 1) {
       onPageChange(currentPage - 1);
+      scrollToTop();
     }
-  }, [currentPage, onPageChange]);
+  }, [currentPage, onPageChange, scrollToTop]);
   
   const handleNext = useCallback(() => {
     if (currentPage < totalPages) {
       onPageChange(currentPage + 1);
+      scrollToTop();
     }
-  }, [currentPage, totalPages, onPageChange]);
+  }, [currentPage, totalPages, onPageChange, scrollToTop]);
   
   const handlePageClick = useCallback((page) => {
     onPageChange(page);
-  }, [onPageChange]);
+    scrollToTop();
+  }, [onPageChange, scrollToTop]);
   
-  // Base button styles
+  // Base button styles - updated to light purple background by default
   const buttonBaseClasses = `
     flex items-center justify-center w-10 h-10 rounded-md transition-colors
     ${darkMode 
-      ? 'text-gray-300 hover:bg-gray-700' 
-      : 'text-gray-700 hover:bg-gray-200'}
+      ? 'text-gray-300 bg-purple-900 hover:bg-purple-800' 
+      : 'text-gray-700 bg-purple-100 hover:bg-purple-200'}
   `;
   
-  // Active button styles
+  // Active button styles - updated to light purple
   const activeButtonClasses = `
     font-bold ${darkMode 
-      ? 'bg-green-700 text-white hover:bg-green-600' 
-      : 'bg-green-500 text-white hover:bg-green-600'}
+      ? 'bg-purple-700 text-white hover:bg-purple-600' 
+      : 'bg-purple-400 text-white hover:bg-purple-500'}
   `;
   
   // Disabled button styles
@@ -109,8 +120,8 @@ const Pagination = memo(({ currentPage, totalItems, itemsPerPage, onPageChange }
           </>
         )}
         
-        {/* Current range of pages */}
-        {pageNumbers.map(page => (
+        {/* Main page number buttons */}
+        {pageNumbers.map((page) => (
           <button
             key={page}
             onClick={() => handlePageClick(page)}
