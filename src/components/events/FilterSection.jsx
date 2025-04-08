@@ -229,7 +229,11 @@ const FilterSection = ({
                   darkMode
                     ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200'
-                } shadow-sm flex justify-between items-center transition-colors duration-300`}
+                } ${selectedGenres.length > 0 ? 
+                  darkMode 
+                    ? 'border-2 border-green-500 shadow-md' 
+                    : 'border-2 border-green-500 shadow-md' 
+                  : ''} shadow-sm flex justify-between items-center transition-colors duration-300`}
               >
                 <span>Genres</span>
                 <div className="flex items-center">
@@ -252,7 +256,11 @@ const FilterSection = ({
                   darkMode
                     ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200'
-                } shadow-sm flex justify-between items-center transition-colors duration-300`}
+                } ${selectedOrganizers.length > 0 ? 
+                  darkMode 
+                    ? 'border-2 border-green-500 shadow-md' 
+                    : 'border-2 border-green-500 shadow-md' 
+                  : ''} shadow-sm flex justify-between items-center transition-colors duration-300`}
               >
                 <span>Organizers</span>
                 <div className="flex items-center">
@@ -275,7 +283,11 @@ const FilterSection = ({
                   darkMode
                     ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200'
-                } shadow-sm flex justify-between items-center transition-colors duration-300`}
+                } ${selectedVenues.length > 0 ? 
+                  darkMode 
+                    ? 'border-2 border-green-500 shadow-md' 
+                    : 'border-2 border-green-500 shadow-md' 
+                  : ''} shadow-sm flex justify-between items-center transition-colors duration-300`}
               >
                 <span>Venues</span>
                 <div className="flex items-center">
@@ -298,7 +310,11 @@ const FilterSection = ({
                   darkMode
                     ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600'
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200'
-                } shadow-sm flex justify-between items-center transition-colors duration-300`}
+                } ${selectedCities.length > 0 ? 
+                  darkMode 
+                    ? 'border-2 border-green-500 shadow-md' 
+                    : 'border-2 border-green-500 shadow-md' 
+                  : ''} shadow-sm flex justify-between items-center transition-colors duration-300`}
               >
                 <span>Cities</span>
                 <div className="flex items-center">

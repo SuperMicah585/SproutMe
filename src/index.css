@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Unlock&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Prosto+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -52,6 +53,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: 'FreePixel', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Support for dark mode with Tailwind */
@@ -59,8 +63,10 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Default to dark mode */
 html {
-  color-scheme: light;
+  color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 h1 {
@@ -100,5 +106,55 @@ button:focus-visible {
   }
   button:hover {
     border-style: solid; /* Ensure border becomes solid on hover */
+  }
+  html {
+    color-scheme: light;
+  }
+}
+
+/* Shine animation for tooltips */
+@keyframes shine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shine {
+  animation: shine 2s infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
+
+/* Light mode adjustments */
+@media (prefers-color-scheme: light) {
+  ::-webkit-scrollbar-track {
+    background: #f0f0f0;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a0a0a0;
   }
 }

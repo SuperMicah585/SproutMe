@@ -14,8 +14,18 @@ export const ThemeProvider = ({ children }) => {
   // Check for stored preference, falling back to system preference
   const [darkMode, setDarkMode] = useState(() => {
     const storedTheme = localStorage.getItem('darkMode');
-    return storedTheme !== null ? storedTheme === 'true' : prefersDarkMode;
+    // Default to dark mode if no preference is stored
+    return storedTheme !== null ? storedTheme === 'true' : true;
   });
+  
+  // Apply dark mode class immediately on mount
+  useEffect(() => {
+    // Force dark mode on initial load
+    document.documentElement.classList.add('dark');
+    
+    // Update localStorage
+    localStorage.setItem('darkMode', 'true');
+  }, []);
   
   // Update localStorage when theme changes
   useEffect(() => {

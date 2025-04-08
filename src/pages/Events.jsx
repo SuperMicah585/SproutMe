@@ -46,7 +46,7 @@ const EventsPage = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [eventsPerPage] = useState(50); // Reduced from 100 to 50 for better performance
-  
+
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [selectedGenres, setSelectedGenres] = useState([]);
@@ -64,10 +64,11 @@ const EventsPage = () => {
   const [availableCities, setAvailableCities] = useState([]);
   
   // Mobile UI states
-  const [showFilters, setShowFilters] = useState(false);
-  const [activeFilterModal, setActiveFilterModal] = useState(null); // null, "genres", "organizers", "venues"
+  const [showFilters, setShowFilters] = useState(true);
+  const [activeFilterModal, setActiveFilterModal] = useState("cities"); // Set to "cities" by default
   const [filterCount, setFilterCount] = useState(0);
   const [sharing, setSharing] = useState(false);
+  const [showLoginTooltip, setShowLoginTooltip] = useState(true);
 
   useEffect(() => {
     // Only run once on mount or when phone hash changes
@@ -284,64 +285,64 @@ const EventsPage = () => {
   
     // Extract unique genres with counts
     if (activeFilterModal === 'genres') {
-      const genreCounts = {};
+    const genreCounts = {};
       eventsArray.forEach(event => {
         const eventGenres = event.genre && event.genre.trim() ? 
           event.genre.split(', ').map(g => g.trim()) : 
           ['None'];
         
         eventGenres.forEach(genre => {
-          genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-        });
+        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
       });
-      const genres = Object.entries(genreCounts)
-        .map(([genre, count]) => ({ name: genre, count }))
-        .sort((a, b) => b.count - a.count);
+    });
+    const genres = Object.entries(genreCounts)
+      .map(([genre, count]) => ({ name: genre, count }))
+      .sort((a, b) => b.count - a.count);
       setAvailableGenres(genres);
     }
     
     // Extract unique organizers with counts
     else if (activeFilterModal === 'organizers') {
-      const organizerCounts = {};
+    const organizerCounts = {};
       eventsArray.forEach(event => {
-        const organizer = event.organizer.trim();
-        if (organizer) {
-          organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
-        }
-      });
-      const organizers = Object.entries(organizerCounts)
-        .map(([organizer, count]) => ({ name: organizer, count }))
-        .sort((a, b) => b.count - a.count);
+      const organizer = event.organizer.trim();
+      if (organizer) {
+        organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
+      }
+    });
+    const organizers = Object.entries(organizerCounts)
+      .map(([organizer, count]) => ({ name: organizer, count }))
+      .sort((a, b) => b.count - a.count);
       setAvailableOrganizers(organizers);
     }
     
     // Extract unique venues with counts
     else if (activeFilterModal === 'venues') {
-      const venueCounts = {};
+    const venueCounts = {};
       eventsArray.forEach(event => {
-        const venue = event.venue.trim();
-        venueCounts[venue] = (venueCounts[venue] || 0) + 1;
-      });
-      const venues = Object.entries(venueCounts)
-        .map(([venue, count]) => ({ name: venue, count }))
-        .sort((a, b) => b.count - a.count);
+      const venue = event.venue.trim();
+      venueCounts[venue] = (venueCounts[venue] || 0) + 1;
+    });
+    const venues = Object.entries(venueCounts)
+      .map(([venue, count]) => ({ name: venue, count }))
+      .sort((a, b) => b.count - a.count);
       setAvailableVenues(venues);
     }
     
     // Extract cities from venue strings with counts
     else if (activeFilterModal === 'cities') {
-      const cityCounts = {};
+    const cityCounts = {};
       eventsArray.forEach(event => {
         const city = extractCityFromVenue(event.venue);
-        if (city) {
-          cityCounts[city] = (cityCounts[city] || 0) + 1;
-        }
-      });
-      const cities = Object.entries(cityCounts)
-        .map(([city, count]) => ({ name: city, count }))
-        .sort((a, b) => b.count - a.count);
-      setAvailableCities(cities);
-    }
+      if (city) {
+        cityCounts[city] = (cityCounts[city] || 0) + 1;
+      }
+    });
+    const cities = Object.entries(cityCounts)
+      .map(([city, count]) => ({ name: city, count }))
+      .sort((a, b) => b.count - a.count);
+    setAvailableCities(cities);
+  }
   }, [activeFilterModal]);
 
   // Update filter count for badge
@@ -389,6 +390,14 @@ const EventsPage = () => {
     filterCount
   ]);
 
+  // Check if we should show the login tooltip
+  useEffect(() => {
+    // Only show tooltip if user is not logged in
+    if (isLoggedIn) {
+      setShowLoginTooltip(false);
+    }
+  }, [isLoggedIn]);
+
   // Optimized favoriting to avoid unnecessary array copies
   const handleFavoriteEvent = useCallback(async (event, index, e) => {
     e.stopPropagation();
@@ -401,24 +410,20 @@ const EventsPage = () => {
         return;
       }
       
-      // Immediately update UI for better user experience
+      // Check if the event is already favorited
       const wasFavorite = event.is_favorite;
       
-      // Update the events array directly with mutation to avoid copying the whole array
+      // Update the events array to reflect the new favorite status
       setEvents(prevEvents => {
-        // Directly mutate events array for better performance
-        const updatedEvents = [...prevEvents];
-        const eventIndex = updatedEvents.findIndex(e => 
-          e.event_name === event.event_name &&
-          e.venue === event.venue &&
-          e.date === event.date
-        );
-        
-        if (eventIndex !== -1) {
-          updatedEvents[eventIndex].is_favorite = !wasFavorite;
-        }
-        
-        return updatedEvents;
+        // Create a new array with new event objects to ensure React detects the change
+        return prevEvents.map(e => {
+          if (e.event_name === event.event_name && 
+              e.venue === event.venue && 
+              e.date === event.date) {
+            return { ...e, is_favorite: !wasFavorite };
+          }
+          return e;
+        });
       });
       
       try {
@@ -461,18 +466,14 @@ const EventsPage = () => {
         if (!response.ok) {
           // Revert UI change if API call failed
           setEvents(prevEvents => {
-            const revertedEvents = [...prevEvents];
-            const eventIndex = revertedEvents.findIndex(e => 
-              e.event_name === event.event_name &&
-              e.venue === event.venue &&
-              e.date === event.date
-            );
-            
-            if (eventIndex !== -1) {
-              revertedEvents[eventIndex].is_favorite = wasFavorite;
-            }
-            
-            return revertedEvents;
+            return prevEvents.map(e => {
+              if (e.event_name === event.event_name && 
+                  e.venue === event.venue && 
+                  e.date === event.date) {
+                return { ...e, is_favorite: wasFavorite };
+              }
+              return e;
+            });
           });
           
           toast.error(data.message || `Failed to ${action} event`);
@@ -481,27 +482,18 @@ const EventsPage = () => {
           toast.success(wasFavorite 
             ? 'Event removed from favorites!' 
             : 'Event added to favorites!');
-            
-          // Force re-render by creating a new events array with the updated favorite status
-          setEvents(prevEvents => {
-            return [...prevEvents];
-          });
         }
       } catch (error) {
         // Revert UI change if there was an error
         setEvents(prevEvents => {
-          const revertedEvents = [...prevEvents];
-          const eventIndex = revertedEvents.findIndex(e => 
-            e.event_name === event.event_name &&
-            e.venue === event.venue &&
-            e.date === event.date
-          );
-          
-          if (eventIndex !== -1) {
-            revertedEvents[eventIndex].is_favorite = wasFavorite;
-          }
-          
-          return revertedEvents;
+          return prevEvents.map(e => {
+            if (e.event_name === event.event_name && 
+                e.venue === event.venue && 
+                e.date === event.date) {
+              return { ...e, is_favorite: wasFavorite };
+            }
+            return e;
+          });
         });
         
         toast.error(`Failed to ${wasFavorite ? 'unstar' : 'star'} event`);
@@ -620,13 +612,14 @@ const EventsPage = () => {
       // Use Map for O(1) lookups instead of array.some() which is O(n)
       const favoritedMap = new Map();
       favoritedEvents.forEach(favEvent => {
-        // Create a unique key for each event
+        // Create a unique key for each event using event name, venue, and date
         const key = `${favEvent.event_name}|${favEvent.venue}|${favEvent.date}`;
         favoritedMap.set(key, true);
       });
       
       // Mark events as favorited using the map for fast lookups
       return eventsData.map(event => {
+        // Create the same key format for matching
         const key = `${event.event_name}|${event.venue}|${event.date}`;
         return {
           ...event,
@@ -634,6 +627,7 @@ const EventsPage = () => {
         };
       });
     } catch (error) {
+      console.error("Error checking favorited events:", error);
       return eventsData; // Return original data on error
     }
   }, [apiUrl, isLoggedIn, actualPhoneNumber, authPhoneNumber]);
@@ -662,9 +656,10 @@ const EventsPage = () => {
         genre: event.genre && event.genre.trim() ? event.genre : 'None'
       }));
       
-      // Check which events are favorited
+      // Check which events are favorited for the current user
       const eventsWithFavorites = await checkFavoritedEvents(eventsData);
       
+      // Update the events state with the favorited status
       setEvents(eventsWithFavorites);
       
       if (data.phoneNumber) {
@@ -673,6 +668,7 @@ const EventsPage = () => {
       
       setLoading(false);
     } catch (error) {
+      console.error("Error fetching events:", error);
       setError("Failed to fetch events. Please try again later.");
       setLoading(false);
     }
@@ -685,11 +681,9 @@ const EventsPage = () => {
     setSearchTerm("");
     setSelectedOrganizers([]);
     setSelectedVenues([]);
-    setSelectedCities([]);
     setPriceSort("none");
+    setSelectedCities([]);
     setShowStarredOnly(false);
-    setActiveFilterModal(null);
-    setCurrentPage(1); // Reset to first page when filters are reset
   };
 
   // Open filter modal
@@ -726,8 +720,8 @@ const EventsPage = () => {
           <span className={`font-bold text-xl ${
             darkMode ? 'text-green-400' : 'text-green-600'
           } transition-colors duration-300`}>SproutMe</span>
-        </div>
-        
+      </div>
+      
         <div className="flex items-center space-x-2">
           <ThemeToggle />
           
@@ -739,10 +733,10 @@ const EventsPage = () => {
               Welcome, {userName || "User"}
             </span>
           )}
-          
+        
           {/* Share Favorites Button */}
           {isLoggedIn && (
-            <button
+          <button
               onClick={handleShareFavorites}
               className={`${
                 darkMode 
@@ -756,20 +750,66 @@ const EventsPage = () => {
               </svg>
               <span className="hidden sm:inline">{sharing ? 'Generating...' : 'Share Favorites'}</span>
               <span className="sm:hidden">Share</span>
-            </button>
-          )}
+          </button>
+        )}
           
           {/* Auth Button */}
-          <button 
-            onClick={() => isLoggedIn ? logout() : navigate('/login')}
-            className={`${
-              isLoggedIn 
-                ? darkMode ? 'bg-red-700 hover:bg-red-600' : 'bg-red-500 hover:bg-red-600' 
-                : darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-500 hover:bg-purple-600'
-            } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
-          >
-            {isLoggedIn ? 'Logout' : 'Login'}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => isLoggedIn ? logout() : navigate('/login')}
+              className={`${
+                isLoggedIn 
+                  ? darkMode ? 'bg-red-700 hover:bg-red-600' : 'bg-red-500 hover:bg-red-600' 
+                  : darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-500 hover:bg-purple-600'
+              } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+            >
+              {isLoggedIn ? 'Logout' : 'Login'}
+            </button>
+            
+            {/* Login Tooltip for non-logged in users */}
+            {!isLoggedIn && showLoginTooltip && (
+              <div className={`absolute right-0 top-full mt-2 w-72 p-4 rounded-lg shadow-2xl z-[100] ${
+                darkMode ? 'bg-gray-800 text-gray-200 border-2 border-green-500' : 'bg-white text-gray-800 border-2 border-green-500'
+              }`}>
+                <div className="relative overflow-hidden">
+                  {/* Shine effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shine"></div>
+                  
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="text-base font-bold text-green-500">Login to unlock features:</div>
+            <button
+                      onClick={() => setShowLoginTooltip(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+                  <ul className="text-sm space-y-3">
+                    <li className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+                      <span className="font-medium">Save your favorite events</span>
+                    </li>
+                    <li className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Share events with friends</span>
+                    </li>
+                    <li className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Track your event history</span>
+                    </li>
+                  </ul>
+          </div>
+  </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -785,7 +825,7 @@ const EventsPage = () => {
         } transition-colors duration-300 font-prosto`}>
           Discover the best electronic music events across North America
         </p>
-      </div>
+          </div>
       
       {/* Filter section */}
       <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-4">
@@ -796,7 +836,7 @@ const EventsPage = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-            </svg>
+              </svg>
             Filters
             {filterCount > 0 && (
               <span className="ml-2 bg-white text-green-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
@@ -804,11 +844,11 @@ const EventsPage = () => {
               </span>
             )}
           </button>
-        </div>
-        
+            </div>
+            
         {/* Clear All Button - moved from navbar */}
         {filterCount > 0 && (
-          <button 
+                      <button
             onClick={resetFilters}
             className={`${
               darkMode 

@@ -27,7 +27,22 @@ const EnterNumber = () => {
   }, [isLoggedIn, navigate]);
   
   const handleInputChange = (e) => {
-    setInputValue(e.target.value);
+    // Only allow digits and format the phone number
+    const value = e.target.value.replace(/\D/g, '');
+    
+    // Format the phone number as (XXX) XXX-XXXX
+    let formattedValue = '';
+    if (value.length > 0) {
+      formattedValue = '(' + value.substring(0, 3);
+      if (value.length > 3) {
+        formattedValue += ') ' + value.substring(3, 6);
+        if (value.length > 6) {
+          formattedValue += '-' + value.substring(6, 10);
+        }
+      }
+    }
+    
+    setInputValue(formattedValue);
   };
 
   const handleClick = async () => {
@@ -129,13 +144,24 @@ async function send2fa(phoneNumber) {
     <h1 className = "font-unlock text-5xl text-green-500 font-bold">SproutMe</h1>
     </div>
       <h2 className = "font-semibold mt-2 text-black">Log In/Signup</h2>
-      <input 
-         className = 'w-full border border-black h-14 rounded-md pl-2 text-xl font-light bg-white text-black focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500'
-        type="text" 
-        value={inputValue} 
-        onChange={handleInputChange} 
-        placeholder="Input phone number..." 
-      />
+      <div className="w-full relative">
+        <input 
+          className="w-full border border-black h-14 rounded-md pl-10 text-xl font-semibold bg-white text-black focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 font-sans"
+          type="tel" 
+          value={inputValue} 
+          onChange={handleInputChange} 
+          placeholder="(555) 555-5555" 
+          maxLength="14"
+        />
+        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 text-center">
+        Your phone number will only be used to verify you are a real person and will not be shared with third parties.
+      </p>
       <div onClick ={()=>handleClick()}> 
       <EnterButton text="Continue" height={3} width={28} color="green" />
       </div>
