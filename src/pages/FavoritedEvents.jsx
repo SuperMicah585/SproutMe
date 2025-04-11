@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import sproutIcon from './Components/sprout_icon.png';
 import ThemeToggle from '../components/events/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../pages/Components/ToastNotification';
 
 const FavoritedEvents = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -13,6 +14,7 @@ const FavoritedEvents = () => {
   const { isLoggedIn } = useAuth();
   const { darkMode } = useTheme();
   const navigate = useNavigate();
+  const toast = useToast();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,6 +22,42 @@ const FavoritedEvents = () => {
   const [favoritedEvents, setFavoritedEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
+  const [isCopying, setIsCopying] = useState(false);
+  
+  // Function to copy current URL to clipboard
+  const copyShareLink = async () => {
+    try {
+      setIsCopying(true);
+      const shareUrl = window.location.href;
+      
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Share link copied to clipboard!');
+      } else {
+        // Fallback method for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        if (successful) {
+          toast.success('Share link copied to clipboard!');
+        } else {
+          toast.error('Failed to copy link');
+        }
+      }
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast.error('Failed to copy link');
+    } finally {
+      setIsCopying(false);
+    }
+  };
   
   useEffect(() => {
     if (phoneHash) {
@@ -191,7 +229,24 @@ const FavoritedEvents = () => {
             darkMode ? 'text-green-400' : 'text-green-600'
           } transition-colors duration-300`}>SproutMe</span>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          {/* Share Button */}
+          <button
+            onClick={copyShareLink}
+            disabled={isCopying}
+            className={`${
+              darkMode 
+                ? 'bg-blue-700 hover:bg-blue-600' 
+                : 'bg-blue-500 hover:bg-blue-600'
+            } text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            {isCopying ? 'Copying...' : 'Share'}
+          </button>
+          
+          {/* Back to Events Button */}
           <button
             onClick={() => navigate('/events')}
             className={`${

@@ -21,12 +21,75 @@ const FilterModal = ({
 }) => {
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [filteredOptions, setFilteredOptions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasInitialDataCheck, setHasInitialDataCheck] = useState(false);
   const { darkMode } = useTheme();
   
-  // Reset search term when modal changes
+  // Reset search term and handle loading state when modal changes
   useEffect(() => {
+    if (!activeFilterModal) return;
+    
     setModalSearchTerm('');
-  }, [activeFilterModal]);
+    
+    // Only set loading state if we haven't done initial data check
+    // or if we're switching to a different filter type
+    if (!hasInitialDataCheck || !isLoading) {
+      setIsLoading(true);
+    }
+    
+    // Determine if we have data already
+    const hasData = () => {
+      switch (activeFilterModal) {
+        case 'genres':
+          return availableGenres && availableGenres.length > 0;
+        case 'organizers':
+          return availableOrganizers && availableOrganizers.length > 0;
+        case 'venues':
+          return availableVenues && availableVenues.length > 0;
+        case 'cities':
+          return availableCities && availableCities.length > 0;
+        default:
+          return true;
+      }
+    };
+    
+    // Check if data already exists before setting any timeouts
+    if (hasData()) {
+      setIsLoading(false);
+      setHasInitialDataCheck(true);
+      return;
+    }
+    
+    // Mark that we've done the initial data check
+    setHasInitialDataCheck(true);
+    
+    // Wait a bit longer on initial page load to avoid the double loading
+    const initialTimeout = 500;
+    
+    let timer = setTimeout(() => {
+      if (hasData()) {
+        setIsLoading(false);
+      } else {
+        // Set up a data check interval that runs less frequently
+        const dataCheckInterval = setInterval(() => {
+          if (hasData()) {
+            setIsLoading(false);
+            clearInterval(dataCheckInterval);
+          }
+        }, 300);
+        
+        // Safety timeout to prevent infinite loading
+        setTimeout(() => {
+          clearInterval(dataCheckInterval);
+          setIsLoading(false);
+        }, 2500);
+      }
+    }, initialTimeout);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [activeFilterModal, availableGenres, availableOrganizers, availableVenues, availableCities, hasInitialDataCheck, isLoading]);
   
   // Filter options based on search term
   useEffect(() => {
@@ -82,10 +145,51 @@ const FilterModal = ({
   if (!activeFilterModal) return null;
 
   const renderModalContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Loading data...
+          </p>
+        </div>
+      );
+    }
+    
+    // Check if we have data to display
+    const hasNoData = () => {
+      switch (activeFilterModal) {
+        case 'genres':
+          return !availableGenres || availableGenres.length === 0;
+        case 'organizers':
+          return !availableOrganizers || availableOrganizers.length === 0;
+        case 'venues':
+          return !availableVenues || availableVenues.length === 0;
+        case 'cities':
+          return !availableCities || availableCities.length === 0;
+        default:
+          return false;
+      }
+    };
+    
+    // If we still have no data after loading is complete
+    if (hasNoData()) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20h.01" />
+          </svg>
+          <p className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            No data available. Please try again later.
+          </p>
+        </div>
+      );
+    }
+    
     switch (activeFilterModal) {
       case "genres":
         return (
-          <div className="space-y-2 max-h-96">
+          <div className="space-y-2 h-64 overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className={`p-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center transition-colors duration-300`}>No matching genres available</div>
             ) : (
@@ -137,63 +241,9 @@ const FilterModal = ({
             )}
           </div>
         );
-      case "cities":
-        return (
-          <div className="space-y-2 max-h-96">
-            {filteredOptions.length === 0 ? (
-              <div className={`p-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center transition-colors duration-300`}>No matching cities available</div>
-            ) : (
-              filteredOptions.map((city) => (
-                <div 
-                  key={city.name}
-                  onClick={() => {
-                    setSelectedCities(toggleArrayItem(selectedCities, city.name));
-                    // Track city selection in Google Analytics
-                    trackEvent('select_filter', {
-                      'filter_type': 'city',
-                      'filter_value': city.name,
-                      'action': selectedCities.includes(city.name) ? 'deselect' : 'select'
-                    });
-                  }}
-                  className={`p-3 rounded-lg flex items-center justify-between ${
-                    selectedCities.includes(city.name)
-                      ? 'bg-purple-600 text-white border border-purple-700'
-                      : city.count === 0 
-                        ? darkMode 
-                          ? 'bg-gray-700 border border-gray-600 opacity-50 text-gray-400' 
-                          : 'bg-gray-100 border border-gray-200 opacity-50 text-gray-500'
-                        : darkMode 
-                          ? 'bg-gray-700 border border-gray-600 text-gray-300' 
-                          : 'bg-gray-50 border border-gray-200 text-gray-700'
-                  } transition-colors duration-300`}
-                >
-                  <div className="flex items-center">
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
-                      selectedCities.includes(city.name)
-                        ? 'bg-purple-500 border-purple-500'
-                        : darkMode ? 'border-gray-500' : 'border-gray-400'
-                    } transition-colors duration-300`}>
-                      {selectedCities.includes(city.name) && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <span>{city.name}</span>
-                  </div>
-                  <span className={`text-sm font-medium ${
-                    selectedCities.includes(city.name) 
-                      ? 'text-white' 
-                      : darkMode ? 'text-gray-400' : 'text-gray-600'
-                  } transition-colors duration-300`}>{city.count}</span>
-                </div>
-              ))
-            )}
-          </div>
-        );
       case "organizers":
         return (
-          <div className="space-y-2 max-h-96">
+          <div className="space-y-2 h-64 overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className={`p-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center transition-colors duration-300`}>No matching organizers available</div>
             ) : (
@@ -205,7 +255,7 @@ const FilterModal = ({
                     // Track organizer selection in Google Analytics
                     trackEvent('select_filter', {
                       'filter_type': 'organizer',
-                      'filter_value': organizer.name || "Unknown",
+                      'filter_value': organizer.name,
                       'action': selectedOrganizers.includes(organizer.name) ? 'deselect' : 'select'
                     });
                   }}
@@ -247,7 +297,7 @@ const FilterModal = ({
         );
       case "venues":
         return (
-          <div className="space-y-2 max-h-96">
+          <div className="space-y-2 h-64 overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className={`p-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center transition-colors duration-300`}>No matching venues available</div>
             ) : (
@@ -299,6 +349,60 @@ const FilterModal = ({
             )}
           </div>
         );
+      case "cities":
+        return (
+          <div className="space-y-2 h-64 overflow-y-auto">
+            {filteredOptions.length === 0 ? (
+              <div className={`p-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center transition-colors duration-300`}>No matching cities available</div>
+            ) : (
+              filteredOptions.map((city) => (
+                <div 
+                  key={city.name}
+                  onClick={() => {
+                    setSelectedCities(toggleArrayItem(selectedCities, city.name));
+                    // Track city selection in Google Analytics
+                    trackEvent('select_filter', {
+                      'filter_type': 'city',
+                      'filter_value': city.name,
+                      'action': selectedCities.includes(city.name) ? 'deselect' : 'select'
+                    });
+                  }}
+                  className={`p-3 rounded-lg flex items-center justify-between ${
+                    selectedCities.includes(city.name)
+                      ? 'bg-purple-600 text-white border border-purple-700'
+                      : city.count === 0 
+                        ? darkMode 
+                          ? 'bg-gray-700 border border-gray-600 opacity-50 text-gray-400' 
+                          : 'bg-gray-100 border border-gray-200 opacity-50 text-gray-500'
+                        : darkMode 
+                          ? 'bg-gray-700 border border-gray-600 text-gray-300' 
+                          : 'bg-gray-50 border border-gray-200 text-gray-700'
+                  } transition-colors duration-300`}
+                >
+                  <div className="flex items-center">
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${
+                      selectedCities.includes(city.name)
+                        ? 'bg-purple-500 border-purple-500'
+                        : darkMode ? 'border-gray-500' : 'border-gray-400'
+                    } transition-colors duration-300`}>
+                      {selectedCities.includes(city.name) && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <span>{city.name}</span>
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    selectedCities.includes(city.name) 
+                      ? 'text-white' 
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  } transition-colors duration-300`}>{city.count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        );
       default:
         return null;
     }
@@ -345,7 +449,7 @@ const FilterModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl w-full max-w-md max-h-[80vh] flex flex-col transition-colors duration-300`}>
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl w-full max-w-md h-[500px] flex flex-col transition-colors duration-300`}>
         <div className={`p-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b flex justify-between items-center transition-colors duration-300`}>
           <h3 className={`font-bold text-lg ${darkMode ? 'text-gray-200' : 'text-gray-800'} transition-colors duration-300`}>
             {getModalTitle()}
