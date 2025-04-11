@@ -222,14 +222,14 @@ const FavoritedEvents = () => {
       {/* Header */}
       <div className={`w-full ${
         darkMode ? 'bg-gray-800 shadow-gray-900' : 'bg-white shadow-gray-200'
-      } shadow-md p-4 flex justify-between items-center mb-6 transition-colors duration-300`}>
-        <div className="flex items-center">
+      } shadow-md p-4 flex flex-col sm:flex-row justify-between items-center mb-6 transition-colors duration-300`}>
+        <div className="flex items-center mb-3 sm:mb-0">
           <img src={sproutIcon} alt="Sprout Logo" className="h-8 w-8 mr-2" />
           <span className={`font-bold text-xl ${
             darkMode ? 'text-green-400' : 'text-green-600'
           } transition-colors duration-300`}>SproutMe</span>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 w-full sm:w-auto justify-center sm:justify-end">
           {/* Share Button */}
           <button
             onClick={copyShareLink}
@@ -238,9 +238,9 @@ const FavoritedEvents = () => {
               darkMode 
                 ? 'bg-blue-700 hover:bg-blue-600' 
                 : 'bg-blue-500 hover:bg-blue-600'
-            } text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center`}
+            } text-white font-medium py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center text-sm sm:text-base`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
             {isCopying ? 'Copying...' : 'Share'}
@@ -251,9 +251,9 @@ const FavoritedEvents = () => {
             onClick={() => navigate('/events')}
             className={`${
               darkMode ? 'bg-green-700 hover:bg-green-600' : 'bg-green-500 hover:bg-green-600'
-            } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+            } text-white font-medium py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm sm:text-base`}
           >
-            Back to Events
+            Back
           </button>
           <ThemeToggle />
         </div>
