@@ -391,12 +391,18 @@ const EventsPage = () => {
     filterCount
   ]);
 
-  // Check if we should show the login tooltip
+  // Function to close login tooltip
+  const closeLoginTooltip = () => {
+    setShowLoginTooltip(false);
+    // Store the preference in localStorage so it doesn't reappear
+    localStorage.setItem('hideLoginTooltip', 'true');
+  };
+  
+  // Update the useEffect for showLoginTooltip initialization
   useEffect(() => {
-    // Only show tooltip if user is not logged in
-    if (isLoggedIn) {
-      setShowLoginTooltip(false);
-    }
+    // Check if user has previously closed the tooltip
+    const hideTooltip = localStorage.getItem('hideLoginTooltip') === 'true';
+    setShowLoginTooltip(!hideTooltip && !isLoggedIn);
   }, [isLoggedIn]);
 
   // Optimized favoriting to avoid unnecessary array copies
@@ -785,20 +791,21 @@ const EventsPage = () => {
                   
                   <div className="flex justify-between items-start mb-3">
                     <div className="text-base font-bold text-green-500">Login to unlock features:</div>
-            <button
-                      onClick={() => setShowLoginTooltip(false)}
-                      className="text-gray-500 hover:text-gray-700"
+                    <button
+                      onClick={closeLoginTooltip}
+                      className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 cursor-pointer"
+                      aria-label="Close tooltip"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
+                      </svg>
+                    </button>
+                  </div>
                   <ul className="text-sm space-y-3">
                     <li className="flex items-start">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
+                      </svg>
                       <span className="font-medium">Save your favorite events</span>
                     </li>
                     <li className="flex items-start">
@@ -814,8 +821,22 @@ const EventsPage = () => {
                       <span className="font-medium">Track your event history</span>
                     </li>
                   </ul>
-          </div>
-  </div>
+                  <div className="mt-4 flex justify-between">
+                    <button
+                      onClick={() => navigate('/login')}
+                      className={`${darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-600 hover:bg-purple-500'} text-white px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                    >
+                      Login Now
+                    </button>
+                    <button
+                      onClick={closeLoginTooltip}
+                      className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
