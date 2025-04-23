@@ -28,7 +28,22 @@ module.exports = {
       transitionProperty: false,
       transitionTimingFunction: false,
       transitionDelay: false,
+      animation: false,
     },
-    plugins: [],
+    plugins: [
+      function({ addUtilities }) {
+        const newUtilities = {
+          '.no-transitions': {
+            'transition': 'none !important',
+            'animation': 'none !important',
+            '-webkit-transition': 'none !important',
+            '-moz-transition': 'none !important',
+            '-o-transition': 'none !important',
+            '-ms-transition': 'none !important',
+          }
+        }
+        addUtilities(newUtilities)
+      }
+    ],
   };
   

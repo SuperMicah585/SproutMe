@@ -14,6 +14,20 @@
   font-style: normal;
 }
 
+/* Force hardware acceleration across the entire app */
+html {
+  -webkit-backface-visibility: hidden;
+  -webkit-perspective: 1000;
+  -webkit-transform: translate3d(0,0,0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+  transform: translate3d(0,0,0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Dark mode styles (default) */
 :root {
   /* Primary font is your custom font, fallback to system fonts */
   font-family: 'FreePixel', -apple-system, BlinkMacSystemFont, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -30,6 +44,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Fast link styles */
 a {
   font-weight: 500;
   color: #646cff;
@@ -39,6 +54,7 @@ a:hover {
   color: #535bf2;
 }
 
+/* Body styles - avoid any properties that trigger layout recalculation */
 body {
   margin: 0;
   display: flex;
@@ -63,14 +79,16 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Light mode styles */
+/* Light mode styles with high specificity */
 html:not(.dark) {
   color-scheme: light;
+  background-color: #ffffff !important;
+  color: #213547 !important;
 }
 
-html:not(.dark) :root {
-  color: #213547;
-  background-color: #ffffff;
+html:not(.dark) body {
+  background-color: #ffffff !important;
+  color: #213547 !important;
 }
 
 html:not(.dark) a:hover {
