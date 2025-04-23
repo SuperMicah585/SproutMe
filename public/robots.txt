@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Sitemap: https://sproutme.app/sitemap.xml
+
+# Disallow admin and API routes
+Disallow: /admin/
+Disallow: /api/ 
