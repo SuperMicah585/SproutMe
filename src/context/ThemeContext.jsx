@@ -25,20 +25,20 @@ export const ThemeProvider = ({ children }) => {
     }
   }, []);
   
-  // Apply theme class when it changes
+  // Apply theme class when it changes - direct DOM manipulation for speed
   useEffect(() => {
-    // Batch DOM operations for better performance
+    // Direct DOM manipulation without animations
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
     
-    // Store preference (only when it changes)
+    // Store preference
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
   
-  // Listen for system preference changes (unchanged)
+  // Listen for system preference changes
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
@@ -67,12 +67,12 @@ export const ThemeProvider = ({ children }) => {
     };
   }, []);
   
-  // Toggle theme - memoized to prevent unnecessary renders
+  // Toggle theme - direct implementation for speed
   const toggleTheme = React.useCallback(() => {
     setDarkMode(prev => !prev);
   }, []);
   
-  // Provide context with memoized value
+  // Provide context with memoized value to prevent rerenders
   const contextValue = React.useMemo(() => ({ 
     darkMode, 
     toggleTheme 

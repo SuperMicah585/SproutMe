@@ -30,12 +30,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Optimize theme transitions - only apply to specific properties */
-html, body {
-  transition-property: color, background-color;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
+/* Remove transitions for instant theme switching */
 
 a {
   font-weight: 500;
@@ -85,7 +80,7 @@ button {
   background-color: #333;
   color: white;
   cursor: pointer;
-  transition: border-color 0.25s, background-color 0.25s;
+  transition: border-color 0.25s;
 }
 
 button:focus,

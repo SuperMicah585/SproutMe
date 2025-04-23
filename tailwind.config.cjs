@@ -21,6 +21,14 @@ module.exports = {
         },
       },
     },
+    // Disable default transitions
+    corePlugins: {
+      transition: false,
+      transitionDuration: false,
+      transitionProperty: false,
+      transitionTimingFunction: false,
+      transitionDelay: false,
+    },
     plugins: [],
   };
   
