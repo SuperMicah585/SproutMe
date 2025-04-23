@@ -30,8 +30,6 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Remove transitions for instant theme switching */
-
 a {
   font-weight: 500;
   color: #646cff;
@@ -65,6 +63,29 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Light mode styles */
+html:not(.dark) {
+  color-scheme: light;
+}
+
+html:not(.dark) :root {
+  color: #213547;
+  background-color: #ffffff;
+}
+
+html:not(.dark) a:hover {
+  color: #747bff;
+}
+
+html:not(.dark) button {
+  background-color: #f9f9f9;
+  color: #213547;
+}
+
+html:not(.dark) button:hover {
+  border-style: solid;
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
@@ -80,32 +101,11 @@ button {
   background-color: #333;
   color: white;
   cursor: pointer;
-  transition: border-color 0.25s;
 }
 
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-    color: #213547;
-  }
-  button:hover {
-    border-style: solid; /* Ensure border becomes solid on hover */
-  }
-  html {
-    color-scheme: light;
-  }
 }
 
 /* Shine animation for tooltips */
@@ -122,7 +122,7 @@ button:focus-visible {
   animation: shine 2s infinite;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - Dark mode (default) */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -140,17 +140,15 @@ button:focus-visible {
   background: #5a5a5a;
 }
 
-/* Light mode adjustments */
-@media (prefers-color-scheme: light) {
-  ::-webkit-scrollbar-track {
-    background: #f0f0f0;
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: #c0c0c0;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: #a0a0a0;
-  }
+/* Light mode scrollbar */
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+}
+
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #a0a0a0;
 }

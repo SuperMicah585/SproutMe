@@ -19,7 +19,7 @@ export const ThemeProvider = ({ children }) => {
     // Force dark mode on initial load
     document.documentElement.classList.add('dark');
     
-    // This sets the localStorage on initial load to ensure consistency
+    // Set localStorage if not already set
     if (localStorage.getItem('darkMode') === null) {
       localStorage.setItem('darkMode', 'true');
     }
@@ -38,48 +38,13 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
   
-  // Listen for system preference changes
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const handleChange = (e) => {
-      // Only update if user hasn't explicitly set a preference
-      if (localStorage.getItem('darkMode') === null) {
-        setDarkMode(e.matches);
-      }
-    };
-    
-    // Add listener
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
-    } else {
-      // For older browsers
-      mediaQuery.addListener(handleChange);
-    }
-    
-    return () => {
-      // Clean up
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleChange);
-      } else {
-        mediaQuery.removeListener(handleChange);
-      }
-    };
-  }, []);
-  
-  // Toggle theme - direct implementation for speed
-  const toggleTheme = React.useCallback(() => {
+  // Simple toggle function - direct implementation for speed
+  const toggleTheme = () => {
     setDarkMode(prev => !prev);
-  }, []);
-  
-  // Provide context with memoized value to prevent rerenders
-  const contextValue = React.useMemo(() => ({ 
-    darkMode, 
-    toggleTheme 
-  }), [darkMode, toggleTheme]);
+  };
   
   return (
-    <ThemeContext.Provider value={contextValue}>
+    <ThemeContext.Provider value={{ darkMode, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
