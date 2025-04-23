@@ -20,7 +20,7 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark; /* Default to dark color scheme */
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
 
@@ -30,11 +30,11 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Add smooth transitions for theme changes */
-* {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+/* Optimize theme transitions - only apply to specific properties */
+html, body {
+  transition-property: color, background-color;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 300ms;
+  transition-duration: 150ms;
 }
 
 a {
@@ -55,7 +55,8 @@ body {
   font-family: 'FreePixel', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: #242424; /* Ensure dark background by default */
+  color: rgba(255, 255, 255, 0.87); /* Ensure light text by default */
 }
 
 /* Support for dark mode with Tailwind */

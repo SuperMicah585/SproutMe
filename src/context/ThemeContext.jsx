@@ -7,39 +7,38 @@ const ThemeContext = createContext(null);
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider = ({ children }) => {
-  // Check for system preference initially
-  const prefersDarkMode = window.matchMedia && 
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
-  // Check for stored preference, falling back to system preference
+  // Check for stored preference, but always default to dark mode if none stored
   const [darkMode, setDarkMode] = useState(() => {
     const storedTheme = localStorage.getItem('darkMode');
-    // Default to dark mode if no preference is stored
+    // Always default to true (dark mode) if no preference is stored
     return storedTheme !== null ? storedTheme === 'true' : true;
   });
   
-  // Apply dark mode class immediately on mount
+  // Apply theme class immediately on initial render
   useEffect(() => {
     // Force dark mode on initial load
     document.documentElement.classList.add('dark');
     
-    // Update localStorage
-    localStorage.setItem('darkMode', 'true');
+    // This sets the localStorage on initial load to ensure consistency
+    if (localStorage.getItem('darkMode') === null) {
+      localStorage.setItem('darkMode', 'true');
+    }
   }, []);
   
-  // Update localStorage when theme changes
+  // Apply theme class when it changes
   useEffect(() => {
-    localStorage.setItem('darkMode', darkMode);
-    
-    // Add/remove dark class from document for global styling
+    // Batch DOM operations for better performance
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    
+    // Store preference (only when it changes)
+    localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
   
-  // Listen for system preference changes
+  // Listen for system preference changes (unchanged)
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
@@ -68,19 +67,19 @@ export const ThemeProvider = ({ children }) => {
     };
   }, []);
   
-  // Toggle theme
-  const toggleTheme = () => {
+  // Toggle theme - memoized to prevent unnecessary renders
+  const toggleTheme = React.useCallback(() => {
     setDarkMode(prev => !prev);
-  };
+  }, []);
   
-  // Provide context
+  // Provide context with memoized value
+  const contextValue = React.useMemo(() => ({ 
+    darkMode, 
+    toggleTheme 
+  }), [darkMode, toggleTheme]);
+  
   return (
-    <ThemeContext.Provider 
-      value={{ 
-        darkMode,
-        toggleTheme
-      }}
-    >
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
