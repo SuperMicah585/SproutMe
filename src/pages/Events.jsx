@@ -717,7 +717,15 @@ const EventsPage = () => {
   return (
     <div className={`w-screen min-h-screen flex flex-col items-center ${
       darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'
-    } transition-colors duration-300`}>
+    } transition-colors duration-300 relative`}>
+      {/* Modal Overlay - Only shown when login tooltip is visible */}
+      {!isLoggedIn && showLoginTooltip && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-5 z-40"
+          onClick={closeLoginTooltip}
+        />
+      )}
+    
       {/* Header */}
       <div className={`w-full ${
         darkMode ? 'bg-gray-800 shadow-gray-900' : 'bg-white shadow-gray-200'
@@ -768,7 +776,7 @@ const EventsPage = () => {
         )}
           
           {/* Auth Button */}
-          <div className="relative">
+          <div className="relative" style={{ position: 'relative', zIndex: 100 }}>
             <button
               onClick={() => isLoggedIn ? logout() : navigate('/login')}
               className={`${
@@ -782,12 +790,16 @@ const EventsPage = () => {
             
             {/* Login Tooltip for non-logged in users */}
             {!isLoggedIn && showLoginTooltip && (
-              <div className={`absolute right-0 top-full mt-2 w-72 p-4 rounded-lg shadow-2xl z-[100] ${
-                darkMode ? 'bg-gray-800 text-gray-200 border-2 border-green-500' : 'bg-white text-gray-800 border-2 border-green-500'
-              }`}>
+              <div 
+                className={`absolute right-0 top-full mt-2 w-72 p-4 rounded-lg shadow-2xl z-50 ${
+                  darkMode ? 'bg-gray-800 text-gray-200 border-2 border-green-500' : 'bg-white text-gray-800 border-2 border-green-500'
+                }`} 
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="relative overflow-hidden">
                   {/* Shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shine"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none"></div>
                   
                   <div className="flex justify-between items-start mb-3">
                     <div className="text-base font-bold text-green-500">Login to unlock features:</div>
@@ -795,6 +807,7 @@ const EventsPage = () => {
                       onClick={closeLoginTooltip}
                       className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 cursor-pointer"
                       aria-label="Close tooltip"
+                      type="button"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -823,14 +836,19 @@ const EventsPage = () => {
                   </ul>
                   <div className="mt-4 flex justify-between">
                     <button
-                      onClick={() => navigate('/login')}
+                      onClick={() => {
+                        navigate('/login');
+                        closeLoginTooltip();
+                      }}
                       className={`${darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-600 hover:bg-purple-500'} text-white px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                      type="button"
                     >
                       Login Now
                     </button>
                     <button
                       onClick={closeLoginTooltip}
                       className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                      type="button"
                     >
                       Dismiss
                     </button>
