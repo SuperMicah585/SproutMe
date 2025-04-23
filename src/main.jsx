@@ -1,3 +1,21 @@
+// Immediate script execution to force theme state before any React code runs
+(function() {
+  // Always default to dark mode on initial page load
+  document.documentElement.classList.add('dark');
+  document.documentElement.style.backgroundColor = '#242424';
+  document.documentElement.style.color = 'rgba(255, 255, 255, 0.87)';
+  
+  // Disable all animations and transitions at the document level
+  const style = document.createElement('style');
+  style.textContent = `
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
 // Import utility to prevent WebSocket errors in production
 import './utils/disableHmrInProd';
 

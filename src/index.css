@@ -14,17 +14,15 @@
   font-style: normal;
 }
 
-/* Force hardware acceleration across the entire app */
-html {
-  -webkit-backface-visibility: hidden;
-  -webkit-perspective: 1000;
-  -webkit-transform: translate3d(0,0,0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000;
-  transform: translate3d(0,0,0);
-  transform: translateZ(0);
-  will-change: transform;
+/* Critical performance class used to disable transitions */
+.no-transitions,
+.no-transitions * {
+  transition: none !important;
+  animation: none !important;
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+  -ms-transition: none !important;
 }
 
 /* Dark mode styles (default) */
@@ -68,42 +66,31 @@ body {
   color: rgba(255, 255, 255, 0.87); /* Ensure light text by default */
 }
 
-/* Support for dark mode with Tailwind */
+/* Dark mode styles with minimum properties */
 html.dark {
+  background-color: #242424;
+  color: rgba(255, 255, 255, 0.87);
   color-scheme: dark;
 }
 
-/* Default to dark mode */
-html {
-  color-scheme: dark;
-  scroll-behavior: smooth;
+html.dark body {
+  background-color: #242424;
+  color: rgba(255, 255, 255, 0.87);
 }
 
-/* Light mode styles with high specificity */
+/* Light mode styles with minimum properties */
 html:not(.dark) {
+  background-color: #ffffff;
+  color: #213547;
   color-scheme: light;
-  background-color: #ffffff !important;
-  color: #213547 !important;
 }
 
 html:not(.dark) body {
-  background-color: #ffffff !important;
-  color: #213547 !important;
-}
-
-html:not(.dark) a:hover {
-  color: #747bff;
-}
-
-html:not(.dark) button {
-  background-color: #f9f9f9;
+  background-color: #ffffff;
   color: #213547;
 }
 
-html:not(.dark) button:hover {
-  border-style: solid;
-}
-
+/* Basic element styles without transitions */
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
@@ -121,6 +108,13 @@ button {
   cursor: pointer;
 }
 
+/* Light mode button */
+html:not(.dark) button {
+  background-color: #f9f9f9;
+  color: #213547;
+}
+
+/* Focus styles */
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;

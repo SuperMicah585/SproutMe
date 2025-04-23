@@ -8,6 +8,27 @@
     <meta name="keywords" content="EDM shows, electronic dance music, EDM concerts, EDM festivals, EDM events, electronic music events, dance music shows, EDM tickets, EDM tour dates, EDM venues, EDM artists, electronic music festivals, EDM Canada, EDM USA, EDM North America, find EDM events, upcoming EDM concerts, EDM event finder, EDM near me, electronic music near me, rave finder, EDM shows tonight, EDM calendar, house music events, techno events, trance festivals, dubstep concerts, bass music shows" />
     <meta name="author" content="SproutMe" />
     
+    <!-- Immediate Theme Setup - Prevents Flash & Improves Performance -->
+    <script>
+      (function() {
+        var isDarkMode = localStorage.getItem('darkMode') !== 'false';
+        if (isDarkMode) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.style.backgroundColor = '#242424';
+          document.documentElement.style.color = 'rgba(255, 255, 255, 0.87)';
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.style.backgroundColor = '#ffffff';
+          document.documentElement.style.color = '#213547';
+        }
+        
+        // Force-disable all transitions
+        var style = document.createElement('style');
+        style.textContent = '* { transition: none !important; animation: none !important; }';
+        document.head.appendChild(style);
+      })();
+    </script>
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://sproutme-please.com/" />

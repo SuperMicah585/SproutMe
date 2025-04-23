@@ -1,68 +1,44 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-// Create context
-const ThemeContext = createContext(null);
+// Create the theme context
+const ThemeContext = createContext();
 
-// Custom hook to use the theme context
+// Custom hook to use the theme
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider = ({ children }) => {
-  // Keep track of whether this is the initial render
-  const isInitialMount = useRef(true);
+  // More explicit boolean check for initial state
+  const initialDarkMode = localStorage.getItem('darkMode') === 'false' ? false : true;
+  const [darkMode, setDarkMode] = useState(initialDarkMode);
   
-  // Check for stored preference, but always default to dark mode if none stored
-  const [darkMode, setDarkMode] = useState(() => {
-    const storedTheme = localStorage.getItem('darkMode');
-    // Always default to true (dark mode) if no preference is stored
-    return storedTheme !== null ? storedTheme === 'true' : true;
-  });
-  
-  // Apply theme class immediately on initial render
-  useEffect(() => {
-    // Force dark mode on initial load and set localStorage
-    if (isInitialMount.current) {
-      if (darkMode) {
-        document.documentElement.classList.add('dark');
-      }
-      
-      // Set localStorage if not already set
-      if (localStorage.getItem('darkMode') === null) {
-        localStorage.setItem('darkMode', 'true');
-      }
-      
-      isInitialMount.current = false;
+  // Direct toggle function with inline DOM manipulation for maximum speed
+  const toggleTheme = () => {
+    // Apply no-transition class
+    document.documentElement.classList.add('no-transitions');
+    
+    // Toggle state
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    
+    // Direct DOM manipulation - don't wait for React
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.backgroundColor = '#242424';
+      document.documentElement.style.color = 'rgba(255, 255, 255, 0.87)';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.backgroundColor = '#ffffff';
+      document.documentElement.style.color = '#213547';
     }
-  }, [darkMode]);
-  
-  // Apply theme class when it changes - optimized for Chrome
-  useEffect(() => {
-    if (!isInitialMount.current) { // Skip on initial render as it's handled above
-      // Add no-transitions class before making any changes
-      document.documentElement.classList.add('no-transitions');
-      
-      // Force a repaint before continuing (needed especially for Chrome)
-      // This prevents the browser from batching the class changes with the style changes
-      void document.documentElement.offsetHeight;
-      
-      // Change theme synchronously without animations
-      if (darkMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-      
-      // Store preference
-      localStorage.setItem('darkMode', String(darkMode));
-      
-      // Remove the no-transitions class after a short time
-      setTimeout(() => {
-        document.documentElement.classList.remove('no-transitions');
-      }, 100);
-    }
-  }, [darkMode]);
-  
-  // Direct toggle function with no extra logic
-  const toggleTheme = () => setDarkMode(!darkMode);
+    
+    // Store in localStorage
+    localStorage.setItem('darkMode', String(newDarkMode));
+    
+    // Remove no-transition class after a delay
+    setTimeout(() => {
+      document.documentElement.classList.remove('no-transitions');
+    }, 50);
+  };
   
   return (
     <ThemeContext.Provider value={{ darkMode, toggleTheme }}>
