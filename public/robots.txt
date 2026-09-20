@@ -1,7 +1,12 @@
 User-agent: *
 Allow: /
-Sitemap: https://sproutme.app/sitemap.xml
-
-# Disallow admin and API routes
+Allow: /llms.txt
+Disallow: /login
+Disallow: /verify
+Disallow: /dashboard
+Disallow: /new-user
+Disallow: /favorited_events
 Disallow: /admin/
-Disallow: /api/ 
+Disallow: /api/
+
+Sitemap: https://sproutme-please.com/sitemap.xml

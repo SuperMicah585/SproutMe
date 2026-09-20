@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import EventList from "../components/events/EventList";
 import FilterSection from "../components/events/FilterSection";
 import FilterModal from "../components/events/FilterModal";
 import ThemeToggle from "../components/events/ThemeToggle";
 import ContactFooter from "../components/events/ContactFooter";
+import LoginPrompt from "../components/events/LoginPrompt";
+import SmsIntroModal, { SMS_STORAGE_KEY } from "../components/events/SmsIntroModal";
+import AddEventModal from "../components/events/AddEventModal";
 import { 
   hashPhoneNumber, 
   verifyPhoneHash, 
@@ -17,7 +20,9 @@ import sproutIcon from './Components/sprout_icon.png';
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "./Components/ToastNotification";
-import { trackEvent, trackPageView, verifyAnalytics } from "../utils/analytics";
+import { trackEvent } from "../utils/analytics";
+import { getFiltersFromStorage, saveFiltersToStorage } from "../utils/filterStorage";
+import { collectVenueCities, lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -26,11 +31,15 @@ const EventsPage = () => {
   const { darkMode } = useTheme();
   const toast = useToast();
   const navigate = useNavigate();
-  
-  // Track page view when component mounts
+
   useEffect(() => {
-    // Track page view
-    trackPageView('/events', 'Events Page');
+    const closeMobileNavOnDesktop = () => {
+      if (window.innerWidth >= 768) {
+        setShowMobileNav(false);
+      }
+    };
+    window.addEventListener('resize', closeMobileNavOnDesktop);
+    return () => window.removeEventListener('resize', closeMobileNavOnDesktop);
   }, []);
   
   // Refs to prevent unnecessary refetching
@@ -48,14 +57,17 @@ const EventsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [eventsPerPage] = useState(50); // Reduced from 100 to 50 for better performance
 
+  const storedFiltersRef = useRef(getFiltersFromStorage());
+  const geoTriedRef = useRef(false);
+
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOrganizers, setSelectedOrganizers] = useState([]);
-  const [selectedVenues, setSelectedVenues] = useState([]);
-  const [priceSort, setPriceSort] = useState("none"); // "none", "asc", "desc"
-  const [selectedCities, setSelectedCities] = useState([]);
+  const [selectedGenres, setSelectedGenres] = useState(() => storedFiltersRef.current?.selectedGenres || []);
+  const [searchTerm, setSearchTerm] = useState(() => storedFiltersRef.current?.searchTerm || "");
+  const [selectedOrganizers, setSelectedOrganizers] = useState(() => storedFiltersRef.current?.selectedOrganizers || []);
+  const [selectedVenues, setSelectedVenues] = useState(() => storedFiltersRef.current?.selectedVenues || []);
+  const [priceSort, setPriceSort] = useState(() => storedFiltersRef.current?.priceSort || "none");
+  const [selectedCities, setSelectedCities] = useState(() => storedFiltersRef.current?.selectedCities || []);
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   
   // For dropdown filters - only populate when needed
@@ -65,11 +77,15 @@ const EventsPage = () => {
   const [availableCities, setAvailableCities] = useState([]);
   
   // Mobile UI states
-  const [showFilters, setShowFilters] = useState(true);
-  const [activeFilterModal, setActiveFilterModal] = useState("cities"); // Set to "cities" by default
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeFilterModal, setActiveFilterModal] = useState(null);
   const [filterCount, setFilterCount] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [showLoginTooltip, setShowLoginTooltip] = useState(true);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [showSmsIntro, setShowSmsIntro] = useState(false);
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   useEffect(() => {
     // Only run once on mount or when phone hash changes
@@ -361,6 +377,65 @@ const EventsPage = () => {
     setFilterCount(count);
   }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
 
+  useEffect(() => {
+    const hasFilters = selectedCities.length
+      || selectedGenres.length
+      || selectedOrganizers.length
+      || selectedVenues.length
+      || searchTerm.trim()
+      || priceSort !== 'none'
+      || storedFiltersRef.current;
+    if (!hasFilters) return;
+    saveFiltersToStorage({
+      selectedCities,
+      selectedGenres,
+      selectedOrganizers,
+      selectedVenues,
+      searchTerm,
+      priceSort,
+      skipGeo: Boolean(storedFiltersRef.current?.skipGeo),
+    });
+  }, [selectedCities, selectedGenres, selectedOrganizers, selectedVenues, searchTerm, priceSort]);
+
+  useEffect(() => {
+    const skipGeo = storedFiltersRef.current?.skipGeo
+      || storedFiltersRef.current?.selectedCities?.length
+      || selectedCities.length;
+    if (!events.length || geoTriedRef.current || skipGeo) {
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      const geo = await lookupApproxLocation();
+      if (cancelled) return;
+      geoTriedRef.current = true;
+      if (!geo?.city) return;
+      const match = matchEventCity(geo, collectVenueCities(events));
+      if (match) {
+        setSelectedCities([match]);
+        trackEvent('geo_city_filter', { city: match, source: 'ip' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [events, selectedCities.length]);
+
+  useEffect(() => {
+    if (!events.length || !selectedCities.length) return undefined;
+    const venueCities = collectVenueCities(events);
+    const upgraded = selectedCities.map((city) => {
+      const specific = venueCities.find((option) =>
+        option !== city && option.toLowerCase().startsWith(`${city.toLowerCase()},`)
+      );
+      return specific || city;
+    });
+    if (upgraded.some((city, index) => city !== selectedCities[index])) {
+      setSelectedCities(upgraded);
+    }
+    return undefined;
+  }, [events, selectedCities]);
+
   // Track filter changes
   useEffect(() => {
     // Don't track on initial render
@@ -404,6 +479,16 @@ const EventsPage = () => {
     const hideTooltip = localStorage.getItem('hideLoginTooltip') === 'true';
     setShowLoginTooltip(!hideTooltip && !isLoggedIn);
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    const hideSmsIntro = localStorage.getItem(SMS_STORAGE_KEY) === 'true';
+    setShowSmsIntro(!hideSmsIntro);
+  }, []);
+
+  const closeSmsIntro = useCallback(() => {
+    setShowSmsIntro(false);
+    localStorage.setItem(SMS_STORAGE_KEY, 'true');
+  }, []);
 
   // Optimized favoriting to avoid unnecessary array copies
   const handleFavoriteEvent = useCallback(async (event, index, e) => {
@@ -506,7 +591,7 @@ const EventsPage = () => {
         toast.error(`Failed to ${wasFavorite ? 'unstar' : 'star'} event`);
       }
     } else {
-      toast.error('Please log in to favorite events');
+      setShowLoginPrompt(true);
     }
   }, [isLoggedIn, apiUrl, toast, actualPhoneNumber, authPhoneNumber]);
 
@@ -691,6 +776,16 @@ const EventsPage = () => {
     setPriceSort("none");
     setSelectedCities([]);
     setShowStarredOnly(false);
+    storedFiltersRef.current = {
+      selectedCities: [],
+      selectedGenres: [],
+      selectedOrganizers: [],
+      selectedVenues: [],
+      searchTerm: "",
+      priceSort: "none",
+      skipGeo: true,
+    };
+    saveFiltersToStorage(storedFiltersRef.current);
   };
 
   // Open filter modal
@@ -721,7 +816,7 @@ const EventsPage = () => {
       {/* Modal Overlay - Only shown when login tooltip is visible */}
       {!isLoggedIn && showLoginTooltip && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-5 z-40"
+          className="hidden md:block fixed inset-0 bg-black bg-opacity-5 z-40"
           onClick={closeLoginTooltip}
         />
       )}
@@ -729,135 +824,232 @@ const EventsPage = () => {
       {/* Header */}
       <div className={`w-full ${
         darkMode ? 'bg-gray-800 shadow-gray-900' : 'bg-white shadow-gray-200'
-      } shadow-md p-4 flex justify-between items-center mb-6 transition-colors duration-300`}>
-        <div className="flex items-center">
-          <img src={sproutIcon} alt="Sprout Logo" className="h-8 w-8 mr-2" />
-          <span className={`font-bold text-xl ${
-            darkMode ? 'text-green-400' : 'text-green-600'
-          } transition-colors duration-300`}>SproutMe</span>
-      </div>
-      
-        <div className="flex items-center space-x-2">
-          <ThemeToggle />
-          
-          {/* Welcome Message */}
-          {isLoggedIn && (
-            <span className={`text-sm ${
-              darkMode ? 'text-gray-300' : 'text-gray-600'
-            } hidden md:inline-block mr-2 transition-colors duration-300`}>
-              Welcome, {userName || "User"}
-            </span>
-          )}
-        
-          {/* Favorites Button (replacing Share Favorites) */}
-          {isLoggedIn && (
+      } shadow-md mb-6 transition-colors duration-300 relative`}>
+        <div className="p-4 flex justify-between items-center">
+          <div className="flex items-center min-w-0 mr-2">
+            <Link to="/events" aria-label="SproutMe home" className="flex items-center min-w-0">
+              <img src={sproutIcon} alt="" className="h-8 w-8 mr-2 flex-shrink-0" />
+              <span className={`font-bold text-xl truncate ${
+                darkMode ? 'text-green-400' : 'text-green-600'
+              } transition-colors duration-300`}>SproutMe</span>
+            </Link>
+          </div>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowAddEvent(true)}
+              className={`${
+                darkMode ? 'bg-green-700 hover:bg-green-600' : 'bg-green-600 hover:bg-green-500'
+              } text-white font-medium py-2 px-3 text-sm rounded-lg flex items-center`}
+              aria-label="Add an event"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Event
+            </button>
+            <ThemeToggle />
+
+            {isLoggedIn && (
+              <span className={`text-sm ${
+                darkMode ? 'text-gray-300' : 'text-gray-600'
+              } mr-2 transition-colors duration-300`}>
+                Welcome, {userName || "User"}
+              </span>
+            )}
+
+            {isLoggedIn && (
+              <button
+                onClick={async () => {
+                  const hashToUse = await getPhoneHash();
+                  if (hashToUse) {
+                    navigate(`/favorited_events/${hashToUse}`);
+                  } else {
+                    toast.error('Could not retrieve your favorites');
+                  }
+                }}
+                className={`${
+                  darkMode
+                    ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                } font-medium py-2 px-4 text-sm rounded-lg transition-colors flex items-center justify-center`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="#FBBF24" stroke="#FBBF24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                Favorites
+              </button>
+            )}
+
+            <div className="relative" style={{ zIndex: 100 }}>
+              <button
+                onClick={() => isLoggedIn ? logout() : navigate('/login')}
+                className={`${
+                  isLoggedIn
+                    ? darkMode ? 'bg-red-700 hover:bg-red-600' : 'bg-red-500 hover:bg-red-600'
+                    : darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-500 hover:bg-purple-600'
+                } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+              >
+                {isLoggedIn ? 'Logout' : 'Login'}
+              </button>
+
+              {!isLoggedIn && showLoginTooltip && (
+                <div
+                  className={`absolute right-0 top-full mt-2 w-72 p-4 rounded-lg shadow-2xl z-50 ${
+                    darkMode ? 'bg-gray-800 text-gray-200 border-2 border-green-500' : 'bg-white text-gray-800 border-2 border-green-500'
+                  }`}
+                  style={{ pointerEvents: 'auto' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none"></div>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="text-base font-bold text-green-500">Login to unlock features:</div>
+                      <button
+                        onClick={closeLoginTooltip}
+                        className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 cursor-pointer"
+                        aria-label="Close tooltip"
+                        type="button"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                    <ul className="text-sm space-y-3">
+                      <li className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium">Save your favorite events</span>
+                      </li>
+                      <li className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium">Share events with friends</span>
+                      </li>
+                      <li className="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium">Track your event history</span>
+                      </li>
+                    </ul>
+                    <div className="mt-4 flex justify-between">
+                      <button
+                        onClick={() => {
+                          navigate('/login');
+                          closeLoginTooltip();
+                        }}
+                        className={`${darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-600 hover:bg-purple-500'} text-white px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                        type="button"
+                      >
+                        Login Now
+                      </button>
+                      <button
+                        onClick={closeLoginTooltip}
+                        className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
+                        type="button"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile hamburger */}
           <button
-              onClick={async () => {
-                // Get the user's phone hash for the correct URL
-                const hashToUse = await getPhoneHash();
-                if (hashToUse) {
-                  navigate(`/favorited_events/${hashToUse}`);
+            type="button"
+            className={`md:hidden p-2 rounded-lg ${
+              darkMode ? 'text-gray-100 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'
+            }`}
+            aria-label={showMobileNav ? 'Close menu' : 'Open menu'}
+            aria-expanded={showMobileNav}
+            onClick={() => setShowMobileNav((open) => !open)}
+          >
+            {showMobileNav ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {showMobileNav && (
+          <div className={`md:hidden border-t px-4 py-3 flex flex-col gap-2 ${
+            darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+          }`}>
+            {isLoggedIn && (
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} px-1`}>
+                Welcome, {userName || "User"}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileNav(false);
+                setShowAddEvent(true);
+              }}
+              className={`mobile-nav-item ${
+                darkMode ? 'bg-green-700' : 'bg-green-600'
+              } text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center w-full`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Event
+            </button>
+            {isLoggedIn && (
+              <button
+                onClick={async () => {
+                  setShowMobileNav(false);
+                  const hashToUse = await getPhoneHash();
+                  if (hashToUse) {
+                    navigate(`/favorited_events/${hashToUse}`);
+                  } else {
+                    toast.error('Could not retrieve your favorites');
+                  }
+                }}
+                className={`mobile-nav-item ${
+                  darkMode ? 'bg-purple-700 text-white' : 'bg-purple-600 text-white'
+                } font-medium py-3 px-4 rounded-lg flex items-center justify-center w-full`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="#FBBF24" stroke="#FBBF24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                Favorites
+              </button>
+            )}
+            <ThemeToggle variant="menu" />
+            <button
+              onClick={() => {
+                setShowMobileNav(false);
+                if (isLoggedIn) {
+                  logout();
                 } else {
-                  toast.error('Could not retrieve your favorites');
+                  navigate('/login');
                 }
               }}
-              className={`${
-                darkMode 
-                  ? 'bg-purple-700 hover:bg-purple-600 text-white' 
-                  : 'bg-purple-600 hover:bg-purple-700 text-white'
-              } font-medium py-2 md:px-4 px-2 text-sm md:text-base rounded-lg transition-colors mr-2 flex items-center justify-center`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="#FBBF24" stroke="#FBBF24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-              <span className="hidden sm:inline whitespace-nowrap font-medium">Favorites</span>
-              <span className="sm:hidden font-medium">Favs</span>
-          </button>
-        )}
-          
-          {/* Auth Button */}
-          <div className="relative" style={{ position: 'relative', zIndex: 100 }}>
-            <button
-              onClick={() => isLoggedIn ? logout() : navigate('/login')}
-              className={`${
-                isLoggedIn 
-                  ? darkMode ? 'bg-red-700 hover:bg-red-600' : 'bg-red-500 hover:bg-red-600' 
-                  : darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-500 hover:bg-purple-600'
-              } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+              className={`mobile-nav-item ${
+                isLoggedIn
+                  ? darkMode ? 'bg-red-700' : 'bg-red-500'
+                  : darkMode ? 'bg-purple-700' : 'bg-purple-500'
+              } text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center w-full`}
             >
               {isLoggedIn ? 'Logout' : 'Login'}
             </button>
-            
-            {/* Login Tooltip for non-logged in users */}
-            {!isLoggedIn && showLoginTooltip && (
-              <div 
-                className={`absolute right-0 top-full mt-2 w-72 p-4 rounded-lg shadow-2xl z-50 ${
-                  darkMode ? 'bg-gray-800 text-gray-200 border-2 border-green-500' : 'bg-white text-gray-800 border-2 border-green-500'
-                }`} 
-                style={{ pointerEvents: 'auto' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="relative overflow-hidden">
-                  {/* Shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shine pointer-events-none"></div>
-                  
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="text-base font-bold text-green-500">Login to unlock features:</div>
-                    <button
-                      onClick={closeLoginTooltip}
-                      className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 cursor-pointer"
-                      aria-label="Close tooltip"
-                      type="button"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                  <ul className="text-sm space-y-3">
-                    <li className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium">Save your favorite events</span>
-                    </li>
-                    <li className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium">Share events with friends</span>
-                    </li>
-                    <li className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium">Track your event history</span>
-                    </li>
-                  </ul>
-                  <div className="mt-4 flex justify-between">
-                    <button
-                      onClick={() => {
-                        navigate('/login');
-                        closeLoginTooltip();
-                      }}
-                      className={`${darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-600 hover:bg-purple-500'} text-white px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
-                      type="button"
-                    >
-                      Login Now
-                    </button>
-                    <button
-                      onClick={closeLoginTooltip}
-                      className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} px-4 py-2 rounded-lg font-medium text-sm cursor-pointer`}
-                      type="button"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
       
       {/* Tagline Header */}
@@ -960,7 +1152,7 @@ const EventsPage = () => {
         toggleArrayItem={toggleArrayItem}
       />
       
-      <div className="w-full max-w-5xl px-4 pb-6">
+      <div className="w-full max-w-5xl px-4 pb-28">
         <EventList
           loading={loading}
           error={error}
@@ -973,6 +1165,26 @@ const EventsPage = () => {
           showStarredOnly={showStarredOnly}
         />
       </div>
+      
+      <LoginPrompt
+        open={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+      />
+
+      <SmsIntroModal
+        open={showSmsIntro}
+        onClose={closeSmsIntro}
+      />
+
+      <AddEventModal
+        open={showAddEvent}
+        onClose={() => setShowAddEvent(false)}
+        apiUrl={apiUrl}
+        onAdd={(event) => {
+          setEvents((prev) => [event, ...prev]);
+          setCurrentPage(1);
+        }}
+      />
       
       <ContactFooter />
     </div>

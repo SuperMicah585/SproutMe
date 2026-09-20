@@ -117,7 +117,7 @@ const EventList = memo(({
                 eventRefs.current[eventKey] = el;
               }}
               data-event-id={eventKey}
-              className="transition-opacity duration-300"
+              className="h-full transition-opacity duration-300"
             >
               <EventCard 
                 event={event} 

@@ -23,6 +23,17 @@ const FavoritedEvents = () => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
   const [isCopying, setIsCopying] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
+
+  useEffect(() => {
+    const closeMobileNavOnDesktop = () => {
+      if (window.innerWidth >= 768) {
+        setShowMobileNav(false);
+      }
+    };
+    window.addEventListener('resize', closeMobileNavOnDesktop);
+    return () => window.removeEventListener('resize', closeMobileNavOnDesktop);
+  }, []);
   
   // Function to copy current URL to clipboard
   const copyShareLink = async () => {
@@ -218,45 +229,93 @@ const FavoritedEvents = () => {
   return (
     <div className={`w-screen min-h-screen flex flex-col items-center ${
       darkMode ? 'bg-gray-900' : 'bg-gray-50'
-    } overflow-y-auto pb-8 transition-colors duration-300`}>
+    } overflow-y-auto pb-28 transition-colors duration-300`}>
       {/* Header */}
       <div className={`w-full ${
         darkMode ? 'bg-gray-800 shadow-gray-900' : 'bg-white shadow-gray-200'
-      } shadow-md p-4 flex flex-col sm:flex-row justify-between items-center mb-6 transition-colors duration-300`}>
-        <div className="flex items-center mb-3 sm:mb-0">
-          <img src={sproutIcon} alt="Sprout Logo" className="h-8 w-8 mr-2" />
-          <span className={`font-bold text-xl ${
-            darkMode ? 'text-green-400' : 'text-green-600'
-          } transition-colors duration-300`}>SproutMe</span>
-        </div>
-        <div className="flex items-center space-x-2 w-full sm:w-auto justify-center sm:justify-end">
-          {/* Share Button */}
+      } shadow-md mb-6 transition-colors duration-300`}>
+        <div className="p-4 flex justify-between items-center">
+          <div className="flex items-center">
+            <img src={sproutIcon} alt="Sprout Logo" className="h-8 w-8 mr-2" />
+            <span className={`font-bold text-xl ${
+              darkMode ? 'text-green-400' : 'text-green-600'
+            } transition-colors duration-300`}>SproutMe</span>
+          </div>
+
+          <div className="hidden md:flex items-center space-x-2">
+            <button
+              onClick={copyShareLink}
+              disabled={isCopying}
+              className={`${
+                darkMode
+                  ? 'bg-blue-700 hover:bg-blue-600'
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              {isCopying ? 'Copying...' : 'Share'}
+            </button>
+            <button
+              onClick={() => navigate('/events')}
+              className={`${
+                darkMode ? 'bg-green-700 hover:bg-green-600' : 'bg-green-500 hover:bg-green-600'
+              } text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+            >
+              Back
+            </button>
+            <ThemeToggle />
+          </div>
+
           <button
-            onClick={copyShareLink}
-            disabled={isCopying}
-            className={`${
-              darkMode 
-                ? 'bg-blue-700 hover:bg-blue-600' 
-                : 'bg-blue-500 hover:bg-blue-600'
-            } text-white font-medium py-2 px-3 sm:px-4 rounded-lg transition-colors flex items-center text-sm sm:text-base`}
+            type="button"
+            className={`md:hidden p-2 rounded-lg ${
+              darkMode ? 'text-gray-100 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-100'
+            }`}
+            aria-label={showMobileNav ? 'Close menu' : 'Open menu'}
+            aria-expanded={showMobileNav}
+            onClick={() => setShowMobileNav((open) => !open)}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-            {isCopying ? 'Copying...' : 'Share'}
+            {showMobileNav ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
           </button>
-          
-          {/* Back to Events Button */}
-          <button
-            onClick={() => navigate('/events')}
-            className={`${
-              darkMode ? 'bg-green-700 hover:bg-green-600' : 'bg-green-500 hover:bg-green-600'
-            } text-white font-medium py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm sm:text-base`}
-          >
-            Back
-          </button>
-          <ThemeToggle />
         </div>
+
+        {showMobileNav && (
+          <div className={`md:hidden border-t px-4 py-3 flex flex-col gap-2 ${
+            darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+          }`}>
+            <button
+              onClick={() => {
+                setShowMobileNav(false);
+                copyShareLink();
+              }}
+              disabled={isCopying}
+              className={`mobile-nav-item ${
+                darkMode ? 'bg-blue-700' : 'bg-blue-500'
+              } text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center w-full`}
+            >
+              {isCopying ? 'Copying...' : 'Share'}
+            </button>
+            <button
+              onClick={() => navigate('/events')}
+              className={`mobile-nav-item ${
+                darkMode ? 'bg-green-700' : 'bg-green-500'
+              } text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center w-full`}
+            >
+              Back
+            </button>
+            <ThemeToggle variant="menu" />
+          </div>
+        )}
       </div>
       
       <div className="w-full max-w-5xl px-4">

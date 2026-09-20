@@ -4,16 +4,6 @@
   document.documentElement.classList.add('dark');
   document.documentElement.style.backgroundColor = '#242424';
   document.documentElement.style.color = 'rgba(255, 255, 255, 0.87)';
-  
-  // Disable all animations and transitions at the document level
-  const style = document.createElement('style');
-  style.textContent = `
-    * {
-      transition: none !important;
-      animation: none !important;
-    }
-  `;
-  document.head.appendChild(style);
 })();
 
 // Import utility to prevent WebSocket errors in production
@@ -27,17 +17,20 @@ import EnterNumber from './pages/EnterNumber';
 import VerifyCode from './pages/VerifyCode.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import EventsPage from './pages/Events.jsx';
-import NewUserPage from './pages/NewUserPage.jsx'; // Import the NewUserPage component
+import NewUserPage from './pages/NewUserPage.jsx';
 import FavoritedEvents from './pages/FavoritedEvents.jsx';
 import { ToastContainer } from './pages/Components/ToastNotification.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import Seo from './components/Seo';
+import SmsWidget from './components/events/SmsWidget';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
         <Router>
+          <Seo />
           <Routes>
             {/* Redirect root to events page */}
             <Route path="/" element={<Navigate replace to="/events" />} />
@@ -50,6 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/events" element={<EventsPage />} />
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
           </Routes>
+          <SmsWidget />
         </Router>
         <ToastContainer />
       </AuthProvider>

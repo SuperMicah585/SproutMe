@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -32,18 +32,51 @@ const FilterSection = ({
   const { isLoggedIn: authIsLoggedIn, logout } = useAuth();
   const { darkMode } = useTheme();
   const toast = useToast();
+
+  useEffect(() => {
+    if (!showFilters) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showFilters]);
   
+  if (!showFilters) return null;
+
   return (
-    <>
-      {/* Mobile-Friendly Filters */}
-      {showFilters && (
-        <div className="w-full max-w-5xl px-4 mb-6">
-          {/* Top filters that are always visible */}
-          <div className={`${
-            darkMode 
-              ? 'bg-gray-800 border-green-700 text-gray-200' 
-              : 'bg-white border-green-200 text-black'
-          } rounded-xl shadow-md p-4 mb-2 border transition-colors duration-300`}>
+    <div
+      className="fixed inset-0 z-40 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black bg-opacity-60"
+      onClick={() => setShowFilters(false)}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="filters-title"
+        onClick={(e) => e.stopPropagation()}
+        className={`${
+          darkMode
+            ? 'bg-gray-800 border-green-700 text-gray-200'
+            : 'bg-white border-green-200 text-black'
+        } w-full max-w-lg my-4 sm:my-8 rounded-xl shadow-2xl border flex flex-col`}
+        style={{ maxHeight: '90vh' }}
+      >
+        <div className={`flex items-center justify-between p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <h2 id="filters-title" className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+            Filters
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowFilters(false)}
+            className={darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}
+            aria-label="Close filters"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="overflow-y-auto p-4">
             {/* Starred Events Filter */}
             {isLoggedIn && (
               <div className="mb-4">
@@ -354,10 +387,18 @@ const FilterSection = ({
             } transition-colors duration-300`}>
               Showing {filteredEvents.length} of {events.length} events
             </div>
-          </div>
         </div>
-      )}
-    </>
+        <div className={`p-4 border-t flex justify-end ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <button
+            type="button"
+            onClick={() => setShowFilters(false)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-sm font-medium rounded-lg"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

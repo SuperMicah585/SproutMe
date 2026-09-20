@@ -21,21 +21,18 @@ module.exports = {
         },
       },
     },
-    // Disable default transitions
     corePlugins: {
       transition: false,
       transitionDuration: false,
       transitionProperty: false,
       transitionTimingFunction: false,
       transitionDelay: false,
-      animation: false,
     },
     plugins: [
       function({ addUtilities }) {
         const newUtilities = {
           '.no-transitions': {
             'transition': 'none !important',
-            'animation': 'none !important',
             '-webkit-transition': 'none !important',
             '-moz-transition': 'none !important',
             '-o-transition': 'none !important',
@@ -46,4 +43,3 @@ module.exports = {
       }
     ],
   };
-  

@@ -1,0 +1,31 @@
+# SproutMe
+
+SproutMe lists electronic music (EDM) shows across North America.
+
+## For agents (Instinct, Muse, Claude, ChatGPT)
+
+Do not scrape this website. Use the public JSON API:
+
+- OpenAPI: https://phelpsm4.pythonanywhere.com/openapi.json
+- Search: https://phelpsm4.pythonanywhere.com/v1/events?city=Seattle&genre=house&limit=10
+- One event: https://phelpsm4.pythonanywhere.com/v1/events/{id}
+- Add event: POST https://phelpsm4.pythonanywhere.com/v1/events
+- MCP: POST https://phelpsm4.pythonanywhere.com/mcp
+- Agent instructions: https://phelpsm4.pythonanywhere.com/llms.txt
+
+MCP tools: search_events, get_event, add_event.
+
+Muse Code:
+
+```json
+{
+  "mcp_servers": {
+    "sproutme": {
+      "transport": "streamable_http",
+      "url": "https://phelpsm4.pythonanywhere.com/mcp",
+      "enabled": true,
+      "mode": "optional"
+    }
+  }
+}
+```

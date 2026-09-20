@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "./Components/ToastNotification";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { trackEvent, trackPageView, verifyAnalytics } from "../utils/analytics";
+import { trackEvent } from "../utils/analytics";
 import '../styles/checkerboard.css';
 
 const EnterNumber = () => {
@@ -15,12 +15,6 @@ const EnterNumber = () => {
   const toast = useToast();
   const { isLoggedIn } = useAuth();
   const { darkMode } = useTheme();
-  
-  // Track page view when component mounts
-  useEffect(() => {
-    // Track page view
-    trackPageView('/login', 'Login Page');
-  }, []);
   
   // If already logged in, redirect to events page
   useEffect(() => {
@@ -53,9 +47,8 @@ const EnterNumber = () => {
       const response = await validatePhoneNumber(inputValue, "US");
       if (response.valid === true) {
         // Track successful phone number submission
-        trackEvent('login_attempt', {
-          'method': 'phone_number',
-          'success': true
+        trackEvent('login', {
+          method: 'phone_number',
         });
         
         toast.success('Please input the code sent to your Phone Number');

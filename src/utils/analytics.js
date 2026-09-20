@@ -1,25 +1,28 @@
-/**
- * Analytics utilities for tracking events in Google Analytics
- */
+const flattenParams = (params) => {
+  const flat = {};
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value == null) return;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      Object.entries(value).forEach(([childKey, childValue]) => {
+        if (typeof childValue === 'boolean') {
+          flat[`${key}_${childKey}`] = childValue ? 1 : 0;
+        } else if (childValue != null && typeof childValue !== 'object') {
+          flat[`${key}_${childKey}`] = childValue;
+        }
+      });
+      return;
+    }
+    flat[key] = value;
+  });
+  return flat;
+};
 
-/**
- * Track an event in Google Analytics
- * @param {string} eventName - The name of the event to track
- * @param {Object} eventParams - Parameters to include with the event
- */
 export const trackEvent = (eventName, eventParams = {}) => {
   try {
     if (typeof window === 'undefined' || typeof window.gtag !== 'function') {
       return false;
     }
-
-    // Add timestamp to all events
-    const params = {
-      ...eventParams,
-      timestamp: new Date().toISOString(),
-    };
-
-    window.gtag('event', eventName, params);
+    window.gtag('event', eventName, flattenParams(eventParams));
     return true;
   } catch (error) {
     console.error('Error tracking event:', error);
@@ -27,25 +30,20 @@ export const trackEvent = (eventName, eventParams = {}) => {
   }
 };
 
-/**
- * Track a page view in Google Analytics
- * @param {string} pagePath - The path of the page
- * @param {string} pageTitle - The title of the page
- */
-export const trackPageView = (pagePath, pageTitle) => {
-  return trackEvent('page_view', {
-    page_path: pagePath,
-    page_title: pageTitle
-  });
-};
+let lastPageView = '';
 
-/**
- * Verify that Google Analytics is properly configured
- */
-export const verifyAnalytics = () => {
-  return {
-    gtagAvailable: typeof window.gtag === 'function',
-    dataLayerAvailable: Array.isArray(window.dataLayer),
-    timestamp: new Date().toISOString()
-  };
-}; 
+export const trackPageView = (pagePath, pageTitle) => {
+  if (typeof window === 'undefined' || typeof window.gtag !== 'function') {
+    return false;
+  }
+  const path = pagePath || window.location.pathname;
+  const key = `${path}|${pageTitle || document.title}`;
+  if (lastPageView === key) return false;
+  lastPageView = key;
+  window.gtag('event', 'page_view', {
+    page_title: pageTitle || document.title,
+    page_path: path,
+    page_location: `${window.location.origin}${path}${window.location.search}`,
+  });
+  return true;
+};

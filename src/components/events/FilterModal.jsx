@@ -91,56 +91,70 @@ const FilterModal = ({
     };
   }, [activeFilterModal, availableGenres, availableOrganizers, availableVenues, availableCities, hasInitialDataCheck, isLoading]);
   
-  // Filter options based on search term
-  useEffect(() => {
-    if (!modalSearchTerm.trim()) {
-      // If no search term, use all available options
-      switch (activeFilterModal) {
-        case 'genres':
-          setFilteredOptions(availableGenres);
-          break;
-        case 'organizers':
-          setFilteredOptions(availableOrganizers);
-          break;
-        case 'venues':
-          setFilteredOptions(availableVenues);
-          break;
-        case 'cities':
-          setFilteredOptions(availableCities);
-          break;
-        default:
-          setFilteredOptions([]);
-      }
-      return;
-    }
-    
-    const term = modalSearchTerm.toLowerCase().trim();
-    
+  const selectedNamesForModal = () => {
     switch (activeFilterModal) {
       case 'genres':
-        setFilteredOptions(availableGenres.filter(item => 
-          item.name.toLowerCase().includes(term)
-        ));
+        return selectedGenres;
+      case 'organizers':
+        return selectedOrganizers;
+      case 'venues':
+        return selectedVenues;
+      case 'cities':
+        return selectedCities;
+      default:
+        return [];
+    }
+  };
+
+  const pinSelectedFirst = (options, selectedNames) => {
+    const list = options || [];
+    if (!selectedNames?.length) return list;
+    const byName = new Map(list.map((item) => [item.name, item]));
+    const selectedSet = new Set(selectedNames);
+    const active = selectedNames.map((name) => byName.get(name) || { name, count: 0 });
+    const rest = list.filter((item) => !selectedSet.has(item.name));
+    return [...active, ...rest];
+  };
+
+  // Filter options based on search term, with active selections first
+  useEffect(() => {
+    const selectedNames = selectedNamesForModal();
+    let options = [];
+    switch (activeFilterModal) {
+      case 'genres':
+        options = availableGenres;
         break;
       case 'organizers':
-        setFilteredOptions(availableOrganizers.filter(item => 
-          item.name.toLowerCase().includes(term)
-        ));
+        options = availableOrganizers;
         break;
       case 'venues':
-        setFilteredOptions(availableVenues.filter(item => 
-          item.name.toLowerCase().includes(term)
-        ));
+        options = availableVenues;
         break;
       case 'cities':
-        setFilteredOptions(availableCities.filter(item => 
-          item.name.toLowerCase().includes(term)
-        ));
+        options = availableCities;
         break;
       default:
-        setFilteredOptions([]);
+        options = [];
     }
-  }, [modalSearchTerm, activeFilterModal, availableGenres, availableOrganizers, availableVenues, availableCities]);
+
+    const term = modalSearchTerm.toLowerCase().trim();
+    if (term) {
+      options = (options || []).filter((item) => item.name.toLowerCase().includes(term));
+    }
+
+    setFilteredOptions(pinSelectedFirst(options, selectedNames));
+  }, [
+    modalSearchTerm,
+    activeFilterModal,
+    availableGenres,
+    availableOrganizers,
+    availableVenues,
+    availableCities,
+    selectedGenres,
+    selectedOrganizers,
+    selectedVenues,
+    selectedCities,
+  ]);
 
   if (!activeFilterModal) return null;
 

@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { trackEvent } from '../../utils/analytics';
+import { formatSmsNumber, getSmsNumber } from './SmsIntroModal';
 
 const ContactFooter = () => {
   const { darkMode } = useTheme();
@@ -12,7 +14,17 @@ const ContactFooter = () => {
         <p className={`text-sm ${
           darkMode ? 'text-gray-400' : 'text-gray-600'
         } transition-colors duration-300`}>
-          Contact us at{' '}
+          Text{' '}
+          <a
+            href={`sms:${getSmsNumber()}`}
+            onClick={() => trackEvent('generate_lead', { method: 'sms', source: 'footer' })}
+            className={`${
+              darkMode ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-700'
+            } transition-colors duration-300`}
+          >
+            {formatSmsNumber(getSmsNumber())}
+          </a>
+          {' '}for show recs, or email{' '}
           <a 
             href="mailto:micahphlps@gmail.com"
             className={`${

@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { trackEvent } from '../../utils/analytics';
 
 const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
   const { darkMode } = useTheme();
@@ -32,26 +33,66 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
   
   return (
     <div className={`${darkMode 
-      ? 'bg-gray-800 border-green-700 hover:border-green-500 text-gray-100' 
-      : 'bg-white border-green-200 hover:border-green-400 text-black'
-    } p-4 rounded-xl shadow-md border transition-all hover:shadow-lg`}>
-      <div className="flex justify-between items-start mb-2">
-        <h3 className={`font-extrabold font-prosto ${darkMode ? 'text-gray-100' : 'text-black'}`}>{eventName}</h3>
+      ? 'bg-gray-800 border-green-700 text-gray-100' 
+      : 'bg-white border-green-200 text-black'
+    } h-full p-4 rounded-xl shadow-md border`}>
+      <div className="flex justify-between items-center mb-2">
+        <h3
+          className={`font-extrabold font-prosto min-w-0 flex-1 overflow-hidden pr-2 ${darkMode ? 'text-gray-100' : 'text-black'}`}
+          title={eventName}
+        >
+          {eventUrl ? (
+            <a
+              href={eventUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${eventName} (opens in a new window)`}
+              onClick={() => trackEvent('click', {
+                outbound: true,
+                link_url: eventUrl,
+                link_text: eventName,
+                content_type: 'event',
+              })}
+              className={`flex items-center min-w-0 max-w-full ${
+                darkMode ? 'text-gray-100' : 'text-black'
+              }`}
+            >
+              <span className="truncate">{eventName}</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                className="w-3.5 h-3.5 flex-shrink-0 ml-1 opacity-70"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </a>
+          ) : (
+            <span className="block truncate">{eventName}</span>
+          )}
+        </h3>
         {!readOnly && (
-          <div className="group relative">
+          <div className="relative flex-shrink-0">
             <button 
               onClick={handleFavoriteClick}
-              className="transition-all focus:outline-none bg-transparent p-1 relative"
+              className="focus:outline-none bg-transparent p-1 relative"
               aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
               data-favorite={isFavorite ? "true" : "false"}
               aria-pressed={isFavorite}
             >
-              <div className={`absolute inset-0 ${isFavorite ? 'opacity-100' : 'opacity-0'} w-full h-full border-2 border-dashed border-yellow-400 rounded-md transition-opacity`}></div>
+              <div className={`absolute inset-0 ${isFavorite ? 'opacity-100' : 'opacity-0'} w-full h-full border-2 border-dashed border-yellow-400 rounded-md`}></div>
               <div className={`w-7 h-7 flex items-center justify-center ${isFavorite 
                 ? darkMode ? 'bg-green-900' : 'bg-green-50' 
                 : ''
-              } rounded-md transition-all duration-300 ease-in-out transform hover:scale-125 hover:shadow-lg`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transition-all duration-300 ease-in-out transform hover:rotate-45" 
+              } rounded-md`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" 
                   fill={isFavorite ? "#FBBF24" : "none"} 
                   viewBox="0 0 24 24" 
                   stroke="#FBBF24"
@@ -63,10 +104,10 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
           </div>
         )}
         {readOnly && isFavorite && (
-          <div className="p-1 relative group">
+          <div className="p-1 relative flex-shrink-0">
             <div className="absolute inset-0 w-full h-full border-2 border-dashed border-yellow-400 rounded-md"></div>
-            <div className={`w-7 h-7 flex items-center justify-center ${darkMode ? 'bg-green-900' : 'bg-green-50'} rounded-md transition-all duration-300 ease-in-out transform hover:scale-125 hover:shadow-lg`}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transition-all duration-300 ease-in-out transform hover:rotate-45" 
+            <div className={`w-7 h-7 flex items-center justify-center ${darkMode ? 'bg-green-900' : 'bg-green-50'} rounded-md`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" 
                 fill="#FBBF24" 
                 viewBox="0 0 24 24" 
                 stroke="#FBBF24"
@@ -79,24 +120,24 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
       </div>
       
       <div className="space-y-1 mb-3 text-sm">
-        <div className="flex">
-          <span className={`font-medium w-20 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Date:</span>
-          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{date}</span>
+        <div className="flex min-w-0">
+          <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Date:</span>
+          <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={date}>{date}</span>
         </div>
         
-        <div className="flex">
-          <span className={`font-medium w-20 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Venue:</span>
-          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{venue}</span>
+        <div className="flex min-w-0">
+          <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Venue:</span>
+          <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={venue}>{venue}</span>
         </div>
         
-        <div className="flex flex-wrap items-center">
-          <span className={`font-medium w-20 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Genre:</span>
-          <div className="flex flex-wrap gap-1 mt-1">
+        <div className="flex items-center min-w-0">
+          <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Genre:</span>
+          <div className="flex flex-nowrap gap-1 overflow-hidden min-w-0">
             {genre && genre.split(', ').map((g, i) => (
               <span key={i} className={`${darkMode 
                 ? 'bg-purple-900 text-purple-200' 
                 : 'bg-purple-100 text-purple-800'
-              } px-2 py-0.5 rounded text-xs`}>{g.trim()}</span>
+              } px-2 py-0.5 rounded text-xs whitespace-nowrap flex-shrink-0`}>{g.trim()}</span>
             ))}
             {!genre && (
               <span className={darkMode ? 'text-gray-500' : 'text-gray-500'}>Not specified</span>
@@ -104,30 +145,16 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
           </div>
         </div>
 
-        <div className="flex">
-          <span className={`font-medium w-20 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tickets:</span>
-          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{ticketInfo}</span>
+        <div className="flex min-w-0">
+          <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tickets:</span>
+          <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={ticketInfo}>{ticketInfo}</span>
         </div>
 
-        <div className="flex">
-          <span className={`font-medium w-20 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Organizer:</span>
-          <span className={darkMode ? 'text-gray-300' : 'text-gray-800'}>{organizer}</span>
+        <div className="flex min-w-0">
+          <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Organizer:</span>
+          <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={organizer}>{organizer}</span>
         </div>
       </div>
-      
-      {eventUrl && (
-        <a
-          href={eventUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`block w-full text-center ${darkMode 
-            ? 'bg-green-700 hover:bg-green-600' 
-            : 'bg-green-500 hover:bg-green-600'
-          } text-white font-medium py-2 rounded-lg transition-colors`}
-        >
-          View Event
-        </a>
-      )}
     </div>
   );
 }, (prevProps, nextProps) => {

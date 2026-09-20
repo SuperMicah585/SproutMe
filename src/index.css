@@ -18,11 +18,35 @@
 .no-transitions,
 .no-transitions * {
   transition: none !important;
-  animation: none !important;
   -webkit-transition: none !important;
   -moz-transition: none !important;
   -o-transition: none !important;
   -ms-transition: none !important;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.mobile-nav-item {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  user-select: none;
+}
+
+.mobile-nav-item:focus {
+  outline: none;
+}
+
+.mobile-nav-item:active {
+  filter: brightness(0.88);
 }
 
 /* Dark mode styles (default) */
@@ -99,19 +123,10 @@ h1 {
 button {
   border-radius: 8px;
   border: 1px solid transparent;
-  padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #333;
-  color: white;
   cursor: pointer;
-}
-
-/* Light mode button */
-html:not(.dark) button {
-  background-color: #f9f9f9;
-  color: #213547;
 }
 
 /* Focus styles */
