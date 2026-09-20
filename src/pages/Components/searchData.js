@@ -15,5 +15,6 @@ export const genres = ["house", "dubstep", "bass", "EDM", "tech house", "progres
     "Las Vegas",
     "Phoenix",
     "Portland / Oregon",
-    "Vancouver / British Columbia"
+    "Vancouver / British Columbia",
+    "Toronto"
   ];
