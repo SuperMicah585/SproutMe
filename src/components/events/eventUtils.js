@@ -26,10 +26,35 @@ export const verifyPhoneHash = async (phoneNumber, hash) => {
   return generatedHash === hash;
 };
 
+export const startOfLocalDay = (value = new Date()) => {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const day = value instanceof Date ? new Date(value) : new Date(value);
+  if (Number.isNaN(day.getTime())) return startOfLocalDay();
+  day.setHours(0, 0, 0, 0);
+  return day;
+};
+
 // Parse date string to Date object
 export const parseEventDate = (rawDate) => {
-  const [year, month, day] = rawDate.split('/').map(Number);
-  return new Date(year, month - 1, day);
+  if (!rawDate || typeof rawDate !== 'string') return null;
+  const match = rawDate.match(/(20\d{2})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export const compareEventsByDate = (left, right) => {
+  const dateA = parseEventDate(left?.raw_date);
+  const dateB = parseEventDate(right?.raw_date);
+  if (!dateA && !dateB) return 0;
+  if (!dateA) return 1;
+  if (!dateB) return -1;
+  const diff = dateA - dateB;
+  if (diff !== 0) return diff;
+  return String(left?.event_name || '').localeCompare(String(right?.event_name || ''));
 };
 
 // Extract ticket price from ticket_info string

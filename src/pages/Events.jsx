@@ -11,7 +11,9 @@ import AddEventModal from "../components/events/AddEventModal";
 import { 
   hashPhoneNumber, 
   verifyPhoneHash, 
-  parseEventDate, 
+  parseEventDate,
+  startOfLocalDay,
+  compareEventsByDate,
   extractPrice, 
   toggleArrayItem,
   extractCityFromVenue
@@ -117,18 +119,24 @@ const EventsPage = () => {
     
     // Apply date range filter
     if (dateRange.start) {
-      const startDate = new Date(dateRange.start);
+      const startDate = startOfLocalDay(dateRange.start);
       result = result.filter(event => {
         const eventDate = parseEventDate(event.raw_date);
-        return eventDate >= startDate;
+        return eventDate && eventDate >= startDate;
+      });
+    } else {
+      const today = startOfLocalDay();
+      result = result.filter(event => {
+        const eventDate = parseEventDate(event.raw_date);
+        return !eventDate || eventDate >= today;
       });
     }
     
     if (dateRange.end) {
-      const endDate = new Date(dateRange.end);
+      const endDate = startOfLocalDay(dateRange.end);
       result = result.filter(event => {
         const eventDate = parseEventDate(event.raw_date);
-        return eventDate <= endDate;
+        return eventDate && eventDate <= endDate;
       });
     }
     
@@ -180,7 +188,6 @@ const EventsPage = () => {
       result = result.filter(event => event.is_favorite === true);
     }
     
-    // Apply price sorting
     if (priceSort !== "none") {
       return [...result].sort((a, b) => {
         const priceA = extractPrice(a.ticket_info);
@@ -188,8 +195,8 @@ const EventsPage = () => {
         return priceSort === "asc" ? priceA - priceB : priceB - priceA;
       });
     }
-    
-    return result;
+
+    return [...result].sort(compareEventsByDate);
   }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
 
   // Memoize displayed events for current page
@@ -204,20 +211,26 @@ const EventsPage = () => {
     let result = events;
     
     // Apply date range filter
-    if (excludeFilterType !== 'date' && (dateRange.start || dateRange.end)) {
+    if (excludeFilterType !== 'date') {
       if (dateRange.start) {
-        const startDate = new Date(dateRange.start);
+        const startDate = startOfLocalDay(dateRange.start);
         result = result.filter(event => {
           const eventDate = parseEventDate(event.raw_date);
-          return eventDate >= startDate;
+          return eventDate && eventDate >= startDate;
+        });
+      } else {
+        const today = startOfLocalDay();
+        result = result.filter(event => {
+          const eventDate = parseEventDate(event.raw_date);
+          return !eventDate || eventDate >= today;
         });
       }
       
       if (dateRange.end) {
-        const endDate = new Date(dateRange.end);
+        const endDate = startOfLocalDay(dateRange.end);
         result = result.filter(event => {
           const eventDate = parseEventDate(event.raw_date);
-          return eventDate <= endDate;
+          return eventDate && eventDate <= endDate;
         });
       }
     }

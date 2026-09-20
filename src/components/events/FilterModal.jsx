@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from "../../utils/analytics";
 
@@ -23,6 +23,7 @@ const FilterModal = ({
   const [filteredOptions, setFilteredOptions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasInitialDataCheck, setHasInitialDataCheck] = useState(false);
+  const lockedOrderRef = useRef([]);
   const { darkMode } = useTheme();
   
   // Reset search term and handle loading state when modal changes
@@ -116,7 +117,32 @@ const FilterModal = ({
     return [...active, ...rest];
   };
 
-  // Filter options based on search term, with active selections first
+  const applyLockedOrder = (options, selectedNames) => {
+    const list = options || [];
+    if (!list.length) return [];
+    if (!lockedOrderRef.current.length) {
+      lockedOrderRef.current = pinSelectedFirst(list, selectedNames).map((item) => item.name);
+    }
+    const byName = new Map(list.map((item) => [item.name, item]));
+    const ordered = [];
+    lockedOrderRef.current.forEach((name) => {
+      const item = byName.get(name);
+      if (item) {
+        ordered.push(item);
+        byName.delete(name);
+      }
+    });
+    list.forEach((item) => {
+      if (byName.has(item.name)) ordered.push(item);
+    });
+    return ordered;
+  };
+
+  useEffect(() => {
+    lockedOrderRef.current = [];
+  }, [activeFilterModal, modalSearchTerm]);
+
+  // Keep the visible list still while checking boxes; pin selected items only when the modal opens or the search changes
   useEffect(() => {
     const selectedNames = selectedNamesForModal();
     let options = [];
@@ -142,7 +168,7 @@ const FilterModal = ({
       options = (options || []).filter((item) => item.name.toLowerCase().includes(term));
     }
 
-    setFilteredOptions(pinSelectedFirst(options, selectedNames));
+    setFilteredOptions(applyLockedOrder(options, selectedNames));
   }, [
     modalSearchTerm,
     activeFilterModal,

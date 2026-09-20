@@ -155,9 +155,9 @@ const FavoritedEvents = () => {
           // Only process events with valid raw_date
           if (event.raw_date) {
             const eventDate = parseEventDate(event.raw_date);
-            if (eventDate >= currentDate) {
+            if (eventDate && eventDate >= currentDate) {
               upcoming.push(event);
-            } else {
+            } else if (eventDate) {
               past.push(event);
             }
           } else {
@@ -172,6 +172,9 @@ const FavoritedEvents = () => {
           if (!b.raw_date) return -1;
           const dateA = parseEventDate(a.raw_date);
           const dateB = parseEventDate(b.raw_date);
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
           return dateA - dateB;
         });
         
@@ -181,6 +184,9 @@ const FavoritedEvents = () => {
           if (!b.raw_date) return -1;
           const dateA = parseEventDate(a.raw_date);
           const dateB = parseEventDate(b.raw_date);
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
           return dateB - dateA;
         });
         
