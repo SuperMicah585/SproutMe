@@ -32,3 +32,6 @@ dist-ssr/
 #.turbo/
 #.parcel-cache/
 #.next/
+
+__pycache__/
+*.py[cod]
