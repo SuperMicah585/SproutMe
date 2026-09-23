@@ -211,7 +211,7 @@ const FavoritedEvents = () => {
       <div className={`flex flex-col items-center justify-center min-h-screen ${
         darkMode ? 'bg-gray-900' : 'bg-gray-50'
       } p-4 transition-colors duration-300`}>
-        <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div className="w-12 h-12 page-spinner mb-4" aria-label="Loading favorites"></div>
         <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} transition-colors duration-300`}>Loading favorites...</p>
       </div>
     );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import EventList from "../components/events/EventList";
 import FilterSection from "../components/events/FilterSection";
 import FilterModal from "../components/events/FilterModal";
@@ -8,28 +8,20 @@ import ContactFooter from "../components/events/ContactFooter";
 import LoginPrompt from "../components/events/LoginPrompt";
 import SmsIntroModal, { SMS_STORAGE_KEY } from "../components/events/SmsIntroModal";
 import AddEventModal from "../components/events/AddEventModal";
-import { 
-  hashPhoneNumber, 
-  verifyPhoneHash, 
-  parseEventDate,
-  startOfLocalDay,
-  compareEventsByDate,
-  extractPrice, 
-  toggleArrayItem,
-  extractCityFromVenue
-} from "../components/events/eventUtils";
+import { toggleArrayItem } from "../components/events/eventUtils";
 import sproutIcon from './Components/sprout_icon.png';
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "./Components/ToastNotification";
 import { trackEvent } from "../utils/analytics";
 import { getFiltersFromStorage, saveFiltersToStorage } from "../utils/filterStorage";
-import { collectVenueCities, lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
+import { lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
+
+const PAGE_SIZE = 50;
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
-  const { phoneHash: urlPhoneHash } = useParams();
-  const { isLoggedIn, phoneHash: authPhoneHash, userName, phoneNumber: authPhoneNumber, getPhoneHash, logout } = useAuth();
+  const { isLoggedIn, userName, phoneNumber: authPhoneNumber, getPhoneHash, logout } = useAuth();
   const { darkMode } = useTheme();
   const toast = useToast();
   const navigate = useNavigate();
@@ -44,23 +36,22 @@ const EventsPage = () => {
     return () => window.removeEventListener('resize', closeMobileNavOnDesktop);
   }, []);
   
-  // Refs to prevent unnecessary refetching
   const hasLoadedInitialData = useRef(false);
-  const prevUrlPhoneHash = useRef(urlPhoneHash);
-  const prevAuthPhoneHash = useRef(authPhoneHash);
+  const fetchAbortRef = useRef(null);
+  const loadingMoreRef = useRef(false);
+  const requestIdRef = useRef(0);
   
   const [events, setEvents] = useState([]);
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [actualPhoneNumber, setActualPhoneNumber] = useState(null);
-  const [name, setName] = useState("");
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [eventsPerPage] = useState(50); // Reduced from 100 to 50 for better performance
 
   const storedFiltersRef = useRef(getFiltersFromStorage());
   const geoTriedRef = useRef(false);
+  const facetCitiesRef = useRef([]);
 
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
@@ -69,6 +60,7 @@ const EventsPage = () => {
   const [selectedOrganizers, setSelectedOrganizers] = useState(() => storedFiltersRef.current?.selectedOrganizers || []);
   const [selectedVenues, setSelectedVenues] = useState(() => storedFiltersRef.current?.selectedVenues || []);
   const [priceSort, setPriceSort] = useState(() => storedFiltersRef.current?.priceSort || "none");
+  const [scoreSort, setScoreSort] = useState(() => storedFiltersRef.current?.scoreSort || "none");
   const [selectedCities, setSelectedCities] = useState(() => storedFiltersRef.current?.selectedCities || []);
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   
@@ -89,291 +81,264 @@ const EventsPage = () => {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
 
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    () => storedFiltersRef.current?.searchTerm || ""
+  );
+
   useEffect(() => {
-    // Only run once on mount or when phone hash changes
-    const fetchData = async () => {
-      if (!hasLoadedInitialData.current) {
-        await fetchEvents();
-        hasLoadedInitialData.current = true;
-      } else if (
-        urlPhoneHash !== prevUrlPhoneHash.current || 
-        authPhoneHash !== prevAuthPhoneHash.current
-      ) {
-        await fetchEvents();
-      }
-      
-      // Update previous hash values regardless
-      prevUrlPhoneHash.current = urlPhoneHash;
-      prevAuthPhoneHash.current = authPhoneHash;
-    };
-    
-    fetchData();
-    
-    // Using an empty dependency array ensures this only runs once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Use useMemo to compute filtered events instead of storing in state
-  const filteredEvents = useMemo(() => {
-    let result = events;
-    
-    // Apply date range filter
-    if (dateRange.start) {
-      const startDate = startOfLocalDay(dateRange.start);
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return eventDate && eventDate >= startDate;
-      });
-    } else {
-      const today = startOfLocalDay();
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return !eventDate || eventDate >= today;
-      });
-    }
-    
-    if (dateRange.end) {
-      const endDate = startOfLocalDay(dateRange.end);
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return eventDate && eventDate <= endDate;
-      });
-    }
-    
-    // Apply search term filter
-    if (searchTerm.trim() !== '') {
-      const term = searchTerm.trim().toLowerCase();
-      result = result.filter(event => 
-        event.event_name.toLowerCase().includes(term)
-      );
-    }
-    
-    // Apply genre filter
-    if (selectedGenres.length > 0) {
-      result = result.filter(event => {
-        // Handle empty genre case
-        if (!event.genre || !event.genre.trim()) {
-          return selectedGenres.includes('None');
-        }
-        
-        const eventGenres = event.genre.split(', ').map(g => g.trim());
-        return selectedGenres.some(genre => eventGenres.includes(genre));
-      });
-    }
-    
-    // Apply city filter
-    if (selectedCities.length > 0) {
-      result = result.filter(event => {
-        const city = extractCityFromVenue(event.venue);
-        return city && selectedCities.includes(city);
-      });
-    }
-    
-    // Apply organizer filter
-    if (selectedOrganizers.length > 0) {
-      result = result.filter(event => 
-        selectedOrganizers.includes(event.organizer.trim())
-      );
-    }
-    
-    // Apply venue filter
-    if (selectedVenues.length > 0) {
-      result = result.filter(event => 
-        selectedVenues.includes(event.venue.trim())
-      );
-    }
-    
-    // Apply starred events filter
-    if (showStarredOnly) {
-      result = result.filter(event => event.is_favorite === true);
-    }
-    
-    if (priceSort !== "none") {
-      return [...result].sort((a, b) => {
-        const priceA = extractPrice(a.ticket_info);
-        const priceB = extractPrice(b.ticket_info);
-        return priceSort === "asc" ? priceA - priceB : priceB - priceA;
-      });
-    }
+  const phoneForApi = actualPhoneNumber || authPhoneNumber || null;
 
-    return [...result].sort(compareEventsByDate);
-  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
+  const buildEventParams = useCallback((offset = 0, { exclude } = {}) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
 
-  // Memoize displayed events for current page
+    if (exclude !== "search" && debouncedSearch.trim()) {
+      params.set("q", debouncedSearch.trim());
+    }
+    if (exclude !== "cities") {
+      selectedCities.forEach((city) => params.append("city", city));
+    }
+    if (exclude !== "genres") {
+      selectedGenres.forEach((genre) => params.append("genre", genre));
+    }
+    if (exclude !== "venues") {
+      selectedVenues.forEach((venue) => params.append("venue", venue));
+    }
+    if (exclude !== "organizers") {
+      selectedOrganizers.forEach((organizer) => params.append("organizer", organizer));
+    }
+    if (exclude !== "date") {
+      if (dateRange.start) params.set("date_start", dateRange.start);
+      if (dateRange.end) params.set("date_end", dateRange.end);
+    }
+    if (priceSort === "asc" || priceSort === "desc") {
+      params.set("price_sort", priceSort);
+    }
+    if (exclude !== "starred" && showStarredOnly) {
+      params.set("favorites_only", "1");
+    }
+    if (phoneForApi) {
+      params.set("phone_number", phoneForApi);
+    }
+    return params;
+  }, [
+    debouncedSearch,
+    selectedCities,
+    selectedGenres,
+    selectedVenues,
+    selectedOrganizers,
+    dateRange.start,
+    dateRange.end,
+    priceSort,
+    showStarredOnly,
+    phoneForApi,
+  ]);
+
   const displayedEvents = useMemo(() => {
-    const indexOfLastEvent = currentPage * eventsPerPage;
-    const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
-    return filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
-  }, [filteredEvents, currentPage, eventsPerPage]);
+    if (scoreSort === "none") return events;
+    return [...events].sort((a, b) => {
+      const scoreA = Number.isFinite(Number(a.sprout_score ?? a.health))
+        ? Number(a.sprout_score ?? a.health)
+        : -1;
+      const scoreB = Number.isFinite(Number(b.sprout_score ?? b.health))
+        ? Number(b.sprout_score ?? b.health)
+        : -1;
+      return scoreSort === "asc" ? scoreA - scoreB : scoreB - scoreA;
+    });
+  }, [events, scoreSort]);
 
-  // Memoize the filter counts calculation
-  const calculateFilteredEventsForCounts = useCallback((excludeFilterType) => {
-    let result = events;
-    
-    // Apply date range filter
-    if (excludeFilterType !== 'date') {
-      if (dateRange.start) {
-        const startDate = startOfLocalDay(dateRange.start);
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return eventDate && eventDate >= startDate;
+  const fetchEventsPage = useCallback(async ({ reset }) => {
+    if (reset) {
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+      requestIdRef.current += 1;
+      const requestId = requestIdRef.current;
+      loadingMoreRef.current = false;
+      setLoading(true);
+      setLoadingMore(false);
+      setError(null);
+
+      try {
+        const params = buildEventParams(0);
+        const response = await fetch(`${apiUrl}/events?${params}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
         });
-      } else {
-        const today = startOfLocalDay();
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return !eventDate || eventDate >= today;
-        });
-      }
-      
-      if (dateRange.end) {
-        const endDate = startOfLocalDay(dateRange.end);
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return eventDate && eventDate <= endDate;
-        });
-      }
-    }
-    
-    // Apply search term filter
-    if (excludeFilterType !== 'search' && searchTerm.trim() !== '') {
-      const term = searchTerm.trim().toLowerCase();
-      result = result.filter(event => 
-        event.event_name.toLowerCase().includes(term)
-      );
-    }
-    
-    // Apply genre filter
-    if (excludeFilterType !== 'genres' && selectedGenres.length > 0) {
-      result = result.filter(event => {
-        // Handle empty genre case
-        if (!event.genre || !event.genre.trim()) {
-          return selectedGenres.includes('None');
+        if (!response.ok) {
+          throw new Error(`Server responded with status ${response.status}`);
         }
-        
-        const eventGenres = event.genre.split(', ').map(g => g.trim());
-        return selectedGenres.some(genre => eventGenres.includes(genre));
-      });
-    }
-    
-    // Apply city filter
-    if (excludeFilterType !== 'cities' && selectedCities.length > 0) {
-      result = result.filter(event => {
-        const city = extractCityFromVenue(event.venue);
-        return city && selectedCities.includes(city);
-      });
-    }
-    
-    // Apply organizer filter
-    if (excludeFilterType !== 'organizers' && selectedOrganizers.length > 0) {
-      result = result.filter(event => 
-        selectedOrganizers.includes(event.organizer.trim())
-      );
-    }
-    
-    // Apply venue filter
-    if (excludeFilterType !== 'venues' && selectedVenues.length > 0) {
-      result = result.filter(event => 
-        selectedVenues.includes(event.venue.trim())
-      );
-    }
-    
-    // Apply starred filter
-    if (excludeFilterType !== 'starred' && showStarredOnly) {
-      result = result.filter(event => event.is_favorite === true);
-    }
-    
-    return result;
-  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, showStarredOnly]);
+        const data = await response.json();
+        if (requestId !== requestIdRef.current) return;
 
-  // Memoize filtered events for counts to prevent recreation
-  const filteredEventsForCounts = useMemo(() => {
-    if (filterCount === 0 || !activeFilterModal) {
-      return events;
-    }
-    
-    // Skip the current filter type when calculating available options
-    return calculateFilteredEventsForCounts(activeFilterModal);
-  }, [events, activeFilterModal, filterCount, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly, calculateFilteredEventsForCounts]);
-
-  // Update pagination when filtered events change
-  useEffect(() => {
-    // Reset to first page when filters change
-    setCurrentPage(1);
-  }, [filteredEvents.length]);
-
-  // Extract filter options only when modal is opened
-  useEffect(() => {
-    if (activeFilterModal && filteredEventsForCounts.length > 0) {
-      extractFilterOptions(filteredEventsForCounts);
-    }
-  }, [activeFilterModal, filteredEventsForCounts]);
-
-  // Extract unique filter options with counts from the provided events array
-  const extractFilterOptions = useCallback((eventsArray) => {
-    if (!eventsArray || eventsArray.length === 0) return;
-  
-    // Extract unique genres with counts
-    if (activeFilterModal === 'genres') {
-    const genreCounts = {};
-      eventsArray.forEach(event => {
-        const eventGenres = event.genre && event.genre.trim() ? 
-          event.genre.split(', ').map(g => g.trim()) : 
-          ['None'];
-        
-        eventGenres.forEach(genre => {
-        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-      });
-    });
-    const genres = Object.entries(genreCounts)
-      .map(([genre, count]) => ({ name: genre, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableGenres(genres);
-    }
-    
-    // Extract unique organizers with counts
-    else if (activeFilterModal === 'organizers') {
-    const organizerCounts = {};
-      eventsArray.forEach(event => {
-      const organizer = event.organizer.trim();
-      if (organizer) {
-        organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
+        const page = Array.isArray(data.data) ? data.data : [];
+        const total = Number.isFinite(Number(data.total)) ? Number(data.total) : page.length;
+        setEvents(page);
+        setTotalEvents(total);
+        setHasMore(
+          typeof data.has_more === "boolean"
+            ? data.has_more
+            : page.length < total
+        );
+        setLoading(false);
+        hasLoadedInitialData.current = true;
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+        console.error("Error fetching events:", err);
+        if (requestId !== requestIdRef.current) return;
+        setError("Failed to fetch events. Please try again later.");
+        setEvents([]);
+        setTotalEvents(0);
+        setHasMore(false);
+        setLoading(false);
       }
-    });
-    const organizers = Object.entries(organizerCounts)
-      .map(([organizer, count]) => ({ name: organizer, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableOrganizers(organizers);
+      return;
     }
-    
-    // Extract unique venues with counts
-    else if (activeFilterModal === 'venues') {
-    const venueCounts = {};
-      eventsArray.forEach(event => {
-      const venue = event.venue.trim();
-      venueCounts[venue] = (venueCounts[venue] || 0) + 1;
-    });
-    const venues = Object.entries(venueCounts)
-      .map(([venue, count]) => ({ name: venue, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableVenues(venues);
-    }
-    
-    // Extract cities from venue strings with counts
-    else if (activeFilterModal === 'cities') {
-    const cityCounts = {};
-      eventsArray.forEach(event => {
-        const city = extractCityFromVenue(event.venue);
-      if (city) {
-        cityCounts[city] = (cityCounts[city] || 0) + 1;
+
+    if (!hasMore || loadingMoreRef.current || loading) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const requestId = requestIdRef.current;
+    const offset = events.length;
+
+    try {
+      const params = buildEventParams(offset);
+      const response = await fetch(`${apiUrl}/events?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
       }
-    });
-    const cities = Object.entries(cityCounts)
-      .map(([city, count]) => ({ name: city, count }))
-      .sort((a, b) => b.count - a.count);
-    setAvailableCities(cities);
-  }
-  }, [activeFilterModal]);
+      const data = await response.json();
+      if (requestId !== requestIdRef.current) return;
+
+      const page = Array.isArray(data.data) ? data.data : [];
+      const total = Number.isFinite(Number(data.total)) ? Number(data.total) : null;
+
+      setEvents((prev) => {
+        const seen = new Set(
+          prev.map(
+            (event) =>
+              event?.id ??
+              `${event?.event_name}|${event?.venue}|${event?.raw_date || event?.date}`
+          )
+        );
+        const next = [...prev];
+        for (const event of page) {
+          const key =
+            event?.id ??
+            `${event?.event_name}|${event?.venue}|${event?.raw_date || event?.date}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          next.push(event);
+        }
+        return next;
+      });
+
+      if (total != null) setTotalEvents(total);
+      setHasMore(
+        typeof data.has_more === "boolean"
+          ? data.has_more
+          : total != null
+            ? offset + page.length < total
+            : page.length >= PAGE_SIZE
+      );
+    } catch (err) {
+      console.error("Error loading more events:", err);
+    } finally {
+      loadingMoreRef.current = false;
+      if (requestId === requestIdRef.current) {
+        setLoadingMore(false);
+      }
+    }
+  }, [apiUrl, buildEventParams, events.length, hasMore, loading]);
+
+  const loadMoreEvents = useCallback(() => {
+    fetchEventsPage({ reset: false });
+  }, [fetchEventsPage]);
+
+  // Refetch when server-side filters change
+  useEffect(() => {
+    fetchEventsPage({ reset: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    debouncedSearch,
+    selectedCities,
+    selectedGenres,
+    selectedVenues,
+    selectedOrganizers,
+    dateRange.start,
+    dateRange.end,
+    priceSort,
+    showStarredOnly,
+    phoneForApi,
+  ]);
+
+  const fetchFacets = useCallback(async (exclude) => {
+    try {
+      const params = buildEventParams(0, { exclude });
+      params.delete("limit");
+      params.delete("offset");
+      params.delete("price_sort");
+      if (exclude) params.set("exclude", exclude);
+      const response = await fetch(`${apiUrl}/events/facets?${params}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.data || null;
+    } catch (err) {
+      console.error("Error fetching facets:", err);
+      return null;
+    }
+  }, [apiUrl, buildEventParams]);
+
+  useEffect(() => {
+    if (!activeFilterModal) return undefined;
+    const excludeMap = {
+      genres: "genres",
+      cities: "cities",
+      venues: "venues",
+      organizers: "organizers",
+    };
+    const exclude = excludeMap[activeFilterModal];
+    if (!exclude) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      const facets = await fetchFacets(exclude);
+      if (cancelled || !facets) return;
+      if (activeFilterModal === "genres") setAvailableGenres(facets.genres || []);
+      if (activeFilterModal === "organizers") setAvailableOrganizers(facets.organizers || []);
+      if (activeFilterModal === "venues") setAvailableVenues(facets.venues || []);
+      if (activeFilterModal === "cities") {
+        setAvailableCities(facets.cities || []);
+        facetCitiesRef.current = (facets.cities || []).map((item) => item.name);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeFilterModal,
+    fetchFacets,
+    debouncedSearch,
+    selectedCities,
+    selectedGenres,
+    selectedVenues,
+    selectedOrganizers,
+    dateRange.start,
+    dateRange.end,
+    showStarredOnly,
+  ]);
 
   // Update filter count for badge
   useEffect(() => {
@@ -385,10 +350,11 @@ const EventsPage = () => {
     if (selectedVenues.length) count++;
     if (selectedCities.length) count++;
     if (priceSort !== "none") count++;
+    if (scoreSort !== "none") count++;
     if (showStarredOnly) count++;
     
     setFilterCount(count);
-  }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
+  }, [dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, scoreSort, showStarredOnly]);
 
   useEffect(() => {
     const hasFilters = selectedCities.length
@@ -397,6 +363,7 @@ const EventsPage = () => {
       || selectedVenues.length
       || searchTerm.trim()
       || priceSort !== 'none'
+      || scoreSort !== 'none'
       || storedFiltersRef.current;
     if (!hasFilters) return;
     saveFiltersToStorage({
@@ -406,24 +373,29 @@ const EventsPage = () => {
       selectedVenues,
       searchTerm,
       priceSort,
+      scoreSort,
       skipGeo: Boolean(storedFiltersRef.current?.skipGeo),
     });
-  }, [selectedCities, selectedGenres, selectedOrganizers, selectedVenues, searchTerm, priceSort]);
+  }, [selectedCities, selectedGenres, selectedOrganizers, selectedVenues, searchTerm, priceSort, scoreSort]);
 
   useEffect(() => {
     const skipGeo = storedFiltersRef.current?.skipGeo
       || storedFiltersRef.current?.selectedCities?.length
       || selectedCities.length;
-    if (!events.length || geoTriedRef.current || skipGeo) {
+    if (geoTriedRef.current || skipGeo) {
       return undefined;
     }
     let cancelled = false;
     (async () => {
+      const facets = await fetchFacets();
+      if (cancelled) return;
+      const cities = (facets?.cities || []).map((item) => item.name).filter(Boolean);
+      facetCitiesRef.current = cities;
       const geo = await lookupApproxLocation();
       if (cancelled) return;
       geoTriedRef.current = true;
-      if (!geo?.city) return;
-      const match = matchEventCity(geo, collectVenueCities(events));
+      if (!geo?.city || !cities.length) return;
+      const match = matchEventCity(geo, cities);
       if (match) {
         setSelectedCities([match]);
         trackEvent('geo_city_filter', { city: match, source: 'ip' });
@@ -432,13 +404,13 @@ const EventsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [events, selectedCities.length]);
+  }, [selectedCities.length, fetchFacets]);
 
   useEffect(() => {
-    if (!events.length || !selectedCities.length) return undefined;
-    const venueCities = collectVenueCities(events);
+    const cities = facetCitiesRef.current;
+    if (!cities.length || !selectedCities.length) return undefined;
     const upgraded = selectedCities.map((city) => {
-      const specific = venueCities.find((option) =>
+      const specific = cities.find((option) =>
         option !== city && option.toLowerCase().startsWith(`${city.toLowerCase()},`)
       );
       return specific || city;
@@ -447,7 +419,7 @@ const EventsPage = () => {
       setSelectedCities(upgraded);
     }
     return undefined;
-  }, [events, selectedCities]);
+  }, [selectedCities, totalEvents]);
 
   // Track filter changes
   useEffect(() => {
@@ -463,6 +435,7 @@ const EventsPage = () => {
           'venues': selectedVenues.length > 0,
           'cities': selectedCities.length > 0,
           'price_sort': priceSort !== 'none',
+          'score_sort': scoreSort !== 'none',
           'starred_only': showStarredOnly
         }
       });
@@ -474,8 +447,9 @@ const EventsPage = () => {
     selectedOrganizers, 
     selectedVenues, 
     selectedCities, 
-    priceSort, 
-    showStarredOnly,
+    priceSort,
+    scoreSort,
+    showStarredOnly, 
     filterCount
   ]);
 
@@ -676,108 +650,7 @@ const EventsPage = () => {
     }
   };
 
-  // Check which events are favorited for the current user - optimized
-  const checkFavoritedEvents = useCallback(async (eventsData) => {
-    // Use actualPhoneNumber if available, otherwise fall back to authPhoneNumber
-    const phoneNumber = actualPhoneNumber || authPhoneNumber;
-    
-    if (!isLoggedIn || !phoneNumber) {
-      return eventsData; // Return original data if not logged in or no phone number
-    }
-
-    try {
-      const url = `${apiUrl}/favorite_events_by_phone?phone_number=${encodeURIComponent(phoneNumber)}`;
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (!response.ok) {
-        return eventsData; // Return original data on API error
-      }
-
-      // Safely parse the JSON response
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        return eventsData; // Return original data on parse error
-      }
-      
-      // The server returns data in data.data format based on your server implementation
-      const favoritedEvents = data.data || [];
-      
-      if (favoritedEvents.length === 0) {
-        return eventsData;
-      }
-      
-      // Use Map for O(1) lookups instead of array.some() which is O(n)
-      const favoritedMap = new Map();
-      favoritedEvents.forEach(favEvent => {
-        // Create a unique key for each event using event name, venue, and date
-        const key = `${favEvent.event_name}|${favEvent.venue}|${favEvent.date}`;
-        favoritedMap.set(key, true);
-      });
-      
-      // Mark events as favorited using the map for fast lookups
-      return eventsData.map(event => {
-        // Create the same key format for matching
-        const key = `${event.event_name}|${event.venue}|${event.date}`;
-        return {
-          ...event,
-          is_favorite: favoritedMap.has(key)
-        };
-      });
-    } catch (error) {
-      console.error("Error checking favorited events:", error);
-      return eventsData; // Return original data on error
-    }
-  }, [apiUrl, isLoggedIn, actualPhoneNumber, authPhoneNumber]);
-
-  // Fetch events - optimized
-  async function fetchEvents() {
-    try {
-      const url = `${apiUrl}/events`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      let eventsData = data.data || [];
-      
-      // Process events to replace empty genres with 'None'
-      eventsData = eventsData.map(event => ({
-        ...event,
-        genre: event.genre && event.genre.trim() ? event.genre : 'None'
-      }));
-      
-      // Check which events are favorited for the current user
-      const eventsWithFavorites = await checkFavoritedEvents(eventsData);
-      
-      // Update the events state with the favorited status
-      setEvents(eventsWithFavorites);
-      
-      if (data.phoneNumber) {
-        setActualPhoneNumber(data.phoneNumber);
-      }
-      
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      setError("Failed to fetch events. Please try again later.");
-      setLoading(false);
-    }
-  }
+  // Favorites are applied server-side when phone_number is passed to /events.
 
   // Reset all filters
   const resetFilters = () => {
@@ -787,6 +660,7 @@ const EventsPage = () => {
     setSelectedOrganizers([]);
     setSelectedVenues([]);
     setPriceSort("none");
+    setScoreSort("none");
     setSelectedCities([]);
     setShowStarredOnly(false);
     storedFiltersRef.current = {
@@ -796,6 +670,7 @@ const EventsPage = () => {
       selectedVenues: [],
       searchTerm: "",
       priceSort: "none",
+      scoreSort: "none",
       skipGeo: true,
     };
     saveFiltersToStorage(storedFiltersRef.current);
@@ -1132,14 +1007,24 @@ const EventsPage = () => {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         priceSort={priceSort}
-        setPriceSort={setPriceSort}
+        setPriceSort={(value) => {
+          setPriceSort(value);
+          if (value !== "none") setScoreSort("none");
+        }}
+        scoreSort={scoreSort}
+        setScoreSort={(value) => {
+          setScoreSort(value);
+          if (value !== "none") setPriceSort("none");
+        }}
         selectedGenres={selectedGenres}
         selectedOrganizers={selectedOrganizers}
         selectedVenues={selectedVenues}
         selectedCities={selectedCities}
         openFilterModal={openFilterModal}
         events={events}
-        filteredEvents={filteredEvents}
+        filteredEvents={displayedEvents}
+        totalEvents={totalEvents}
+        loadedCount={events.length}
         showStarredOnly={showStarredOnly}
         setShowStarredOnly={setShowStarredOnly}
         isLoggedIn={isLoggedIn}
@@ -1165,15 +1050,15 @@ const EventsPage = () => {
         toggleArrayItem={toggleArrayItem}
       />
       
-      <div className="w-full max-w-5xl px-4 pb-28">
+      <div className="w-full max-w-5xl px-4 pb-28 flex-1 flex flex-col">
         <EventList
           loading={loading}
+          loadingMore={loadingMore}
           error={error}
-          filteredEvents={filteredEvents}
-          displayedEvents={displayedEvents}
-          currentPage={currentPage}
-          eventsPerPage={eventsPerPage}
-          onPageChange={setCurrentPage}
+          events={displayedEvents}
+          hasMore={hasMore}
+          totalEvents={totalEvents}
+          onLoadMore={loadMoreEvents}
           onFavoriteEvent={handleFavoriteEvent}
           showStarredOnly={showStarredOnly}
         />
@@ -1195,7 +1080,7 @@ const EventsPage = () => {
         apiUrl={apiUrl}
         onAdd={(event) => {
           setEvents((prev) => [event, ...prev]);
-          setCurrentPage(1);
+          setTotalEvents((prev) => prev + 1);
         }}
       />
       

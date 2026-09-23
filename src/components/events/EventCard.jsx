@@ -2,6 +2,28 @@ import React, { memo, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
 
+const partPercent = (value) => {
+  if (value == null || value === '') return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return null;
+  return Math.round(Math.min(Math.max(amount, 0), 1) * 100);
+};
+
+const sproutBadgeClass = (score, darkMode) => {
+  if (score >= 70) {
+    return darkMode ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800';
+  }
+  if (score >= 45) {
+    return darkMode ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-100 text-yellow-800';
+  }
+  return darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700';
+};
+
+const sproutPartLabel = (parts, key, label) => {
+  const percent = partPercent(parts[key]);
+  return percent == null ? `${label} n/a` : `${label} ${percent}`;
+};
+
 const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
   const { darkMode } = useTheme();
   
@@ -24,6 +46,13 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
   const genre = safelyTrim(event.genre) || '';
   const eventUrl = safelyTrim(event.event_url) || '';
   const isFavorite = !!event.is_favorite;
+  const sproutScore = Number.isFinite(Number(event.sprout_score ?? event.health))
+    ? Math.round(Number(event.sprout_score ?? event.health))
+    : null;
+  const sproutParts = event.sprout_parts || event.health_parts || {};
+  const sproutTitle = sproutScore == null
+    ? ''
+    : `SproutMe score ${sproutScore}: ${sproutPartLabel(sproutParts, 'artist', 'artist')}, ${sproutPartLabel(sproutParts, 'hot', 'heat')}, ${sproutPartLabel(sproutParts, 'venue', 'room')}`;
   
   // Handle favorite button click
   const handleFavoriteClick = useCallback((e) => {
@@ -35,7 +64,7 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
     <div className={`${darkMode 
       ? 'bg-gray-800 border-green-700 text-gray-100' 
       : 'bg-white border-green-200 text-black'
-    } h-full p-4 rounded-xl shadow-md border`}>
+    } relative h-full p-4 rounded-xl shadow-md border`}>
       <div className="flex justify-between items-center mb-2">
         <h3
           className={`font-extrabold font-prosto min-w-0 flex-1 overflow-hidden pr-2 ${darkMode ? 'text-gray-100' : 'text-black'}`}
@@ -119,7 +148,7 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
         )}
       </div>
       
-      <div className="space-y-1 mb-3 text-sm">
+      <div className={`space-y-1 text-sm ${sproutScore != null ? 'mb-1 pr-14' : 'mb-3'}`}>
         <div className="flex min-w-0">
           <span className={`font-medium w-20 flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Date:</span>
           <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={date}>{date}</span>
@@ -155,6 +184,15 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
           <span className={`truncate ${darkMode ? 'text-gray-300' : 'text-gray-800'}`} title={organizer}>{organizer}</span>
         </div>
       </div>
+      {sproutScore != null && (
+        <div
+          className={`absolute bottom-3 right-3 min-w-[2.25rem] px-2 py-1 rounded-lg text-center text-sm font-bold ${sproutBadgeClass(sproutScore, darkMode)}`}
+          title={sproutTitle}
+          aria-label={sproutTitle}
+        >
+          {sproutScore}
+        </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
@@ -163,7 +201,9 @@ const EventCard = memo(({ event, index, onFavorite, readOnly = false }) => {
   return (
     prevProps.readOnly === nextProps.readOnly &&
     prevProps.index === nextProps.index &&
-    prevProps.event.is_favorite === nextProps.event.is_favorite
+    prevProps.event.is_favorite === nextProps.event.is_favorite &&
+    prevProps.event.sprout_score === nextProps.event.sprout_score &&
+    prevProps.event.health === nextProps.event.health
   );
 });
 

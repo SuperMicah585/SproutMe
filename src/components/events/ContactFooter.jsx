@@ -7,7 +7,7 @@ const ContactFooter = () => {
   const { darkMode } = useTheme();
 
   return (
-    <div className={`w-full py-4 mt-8 ${
+    <div className={`w-full py-4 mt-auto ${
       darkMode ? 'bg-gray-800' : 'bg-gray-100'
     } transition-colors duration-300`}>
       <div className="max-w-5xl mx-auto px-4 text-center">

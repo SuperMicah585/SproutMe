@@ -7,6 +7,7 @@ export const emptyStoredFilters = () => ({
   selectedVenues: [],
   searchTerm: '',
   priceSort: 'none',
+  scoreSort: 'none',
   skipGeo: false,
 });
 

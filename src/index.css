@@ -76,18 +76,54 @@ a:hover {
   color: #535bf2;
 }
 
-/* Body styles - avoid any properties that trigger layout recalculation */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
   font-family: 'FreePixel', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #242424; /* Ensure dark background by default */
-  color: rgba(255, 255, 255, 0.87); /* Ensure light text by default */
+  background-color: #242424;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@keyframes page-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.page-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 3px solid rgba(34, 197, 94, 0.22);
+  border-top-color: #22c55e;
+  animation: page-spin 0.7s linear infinite;
+}
+
+@keyframes page-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.18;
+  }
+}
+
+.page-skeleton {
+  animation: page-pulse 1.4s ease-in-out infinite;
 }
 
 /* Dark mode styles with minimum properties */

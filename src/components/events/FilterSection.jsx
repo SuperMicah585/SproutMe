@@ -1,8 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useToast } from '../../pages/Components/ToastNotification';
 
 const FilterSection = ({
   showFilters,
@@ -15,6 +12,8 @@ const FilterSection = ({
   setSearchTerm,
   priceSort,
   setPriceSort,
+  scoreSort,
+  setScoreSort,
   selectedGenres,
   selectedOrganizers,
   selectedVenues,
@@ -22,16 +21,15 @@ const FilterSection = ({
   openFilterModal,
   events,
   filteredEvents,
+  totalEvents = 0,
+  loadedCount = 0,
   showStarredOnly,
   setShowStarredOnly,
   isLoggedIn,
   sharing,
   handleShareFavorites
 }) => {
-  const navigate = useNavigate();
-  const { isLoggedIn: authIsLoggedIn, logout } = useAuth();
   const { darkMode } = useTheme();
-  const toast = useToast();
 
   useEffect(() => {
     if (!showFilters) return undefined;
@@ -89,16 +87,6 @@ const FilterSection = ({
                     type="checkbox"
                     checked={showStarredOnly}
                     onChange={() => {
-                      console.log('Toggling starred only filter:', !showStarredOnly);
-                      // Check if we have any favorited events first
-                      const hasFavorites = events.some(event => event.is_favorite === true);
-                      
-                      if (!showStarredOnly && !hasFavorites) {
-                        // Show toast notification if there are no favorites
-                        toast.warning('No favorited events to display. Click the star icon on events you like to save them as favorites.');
-                        return;
-                      }
-                      
                       setShowStarredOnly(!showStarredOnly);
                     }}
                     className="form-checkbox h-5 w-5 text-yellow-300 rounded border-gray-300 focus:ring-yellow-300"
@@ -253,6 +241,56 @@ const FilterSection = ({
                 </label>
               </div>
             </div>
+
+            {/* Score Sort */}
+            <div className="mb-4">
+              <label className={`block ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              } text-sm font-bold mb-2 transition-colors duration-300`}>
+                Score Sort
+              </label>
+              <div className="flex space-x-4">
+                <label className={`flex items-center space-x-2 cursor-pointer ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                } transition-colors duration-300`}>
+                  <input
+                    type="radio"
+                    name="scoreSort"
+                    value="none"
+                    checked={scoreSort === "none"}
+                    onChange={() => setScoreSort("none")}
+                    className="form-radio h-4 w-4 text-green-500"
+                  />
+                  <span>None</span>
+                </label>
+                <label className={`flex items-center space-x-2 cursor-pointer ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                } transition-colors duration-300`}>
+                  <input
+                    type="radio"
+                    name="scoreSort"
+                    value="desc"
+                    checked={scoreSort === "desc"}
+                    onChange={() => setScoreSort("desc")}
+                    className="form-radio h-4 w-4 text-green-500"
+                  />
+                  <span>High to Low</span>
+                </label>
+                <label className={`flex items-center space-x-2 cursor-pointer ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                } transition-colors duration-300`}>
+                  <input
+                    type="radio"
+                    name="scoreSort"
+                    value="asc"
+                    checked={scoreSort === "asc"}
+                    onChange={() => setScoreSort("asc")}
+                    className="form-radio h-4 w-4 text-green-500"
+                  />
+                  <span>Low to High</span>
+                </label>
+              </div>
+            </div>
             
             {/* Filter Category Buttons */}
             <div className="grid grid-cols-2 gap-2">
@@ -385,7 +423,7 @@ const FilterSection = ({
             <div className={`mt-4 text-center text-sm ${
               darkMode ? 'text-gray-400' : 'text-gray-500'
             } transition-colors duration-300`}>
-              Showing {filteredEvents.length} of {events.length} events
+              Showing {(loadedCount || filteredEvents?.length || 0).toLocaleString()} of {(totalEvents || events?.length || 0).toLocaleString()} events
             </div>
         </div>
         <div className={`p-4 border-t flex justify-end ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
