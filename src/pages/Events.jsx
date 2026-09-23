@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import EventList from "../components/events/EventList";
 import FilterSection from "../components/events/FilterSection";
@@ -11,12 +11,7 @@ import AddEventModal from "../components/events/AddEventModal";
 import { 
   hashPhoneNumber, 
   verifyPhoneHash, 
-  parseEventDate,
-  startOfLocalDay,
-  compareEventsByDate,
-  extractPrice, 
   toggleArrayItem,
-  extractCityFromVenue
 } from "../components/events/eventUtils";
 import sproutIcon from './Components/sprout_icon.png';
 import { useAuth } from "../context/AuthContext";
@@ -24,7 +19,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useToast } from "./Components/ToastNotification";
 import { trackEvent } from "../utils/analytics";
 import { getFiltersFromStorage, saveFiltersToStorage } from "../utils/filterStorage";
-import { collectVenueCities, lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
+import { lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
 
 const EventsPage = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -55,9 +50,14 @@ const EventsPage = () => {
   const [actualPhoneNumber, setActualPhoneNumber] = useState(null);
   const [name, setName] = useState("");
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [eventsPerPage] = useState(50); // Reduced from 100 to 50 for better performance
+  // Infinite-scroll / server pagination
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const eventsPerPage = 50;
+  const fetchOffsetRef = useRef(0);
+  const fetchInFlightRef = useRef(false);
+  const fetchGenerationRef = useRef(0);
 
   const storedFiltersRef = useRef(getFiltersFromStorage());
   const geoTriedRef = useRef(false);
@@ -89,293 +89,186 @@ const EventsPage = () => {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
 
+  const buildEventsQuery = useCallback((offset = 0) => {
+    const params = new URLSearchParams();
+    params.set('limit', String(eventsPerPage));
+    params.set('offset', String(offset));
+    selectedCities.forEach((city) => params.append('city', city));
+    selectedGenres.forEach((genre) => params.append('genre', genre));
+    selectedVenues.forEach((venue) => params.append('venue', venue));
+    selectedOrganizers.forEach((organizer) => params.append('organizer', organizer));
+    if (searchTerm.trim()) params.set('q', searchTerm.trim());
+    if (dateRange.start) params.set('date_start', dateRange.start);
+    if (dateRange.end) params.set('date_end', dateRange.end);
+    if (priceSort !== 'none') params.set('price_sort', priceSort);
+    if (showStarredOnly) params.set('favorites_only', '1');
+    const phone = actualPhoneNumber || authPhoneNumber;
+    if (phone) params.set('phone_number', phone);
+    return params;
+  }, [
+    eventsPerPage,
+    selectedCities,
+    selectedGenres,
+    selectedVenues,
+    selectedOrganizers,
+    searchTerm,
+    dateRange.start,
+    dateRange.end,
+    priceSort,
+    showStarredOnly,
+    actualPhoneNumber,
+    authPhoneNumber,
+  ]);
+
+  const fetchFacets = useCallback(async (exclude = null) => {
+    try {
+      const params = buildEventsQuery(0);
+      params.delete('limit');
+      params.delete('offset');
+      params.delete('price_sort');
+      if (exclude) params.set('exclude', exclude);
+      const response = await fetch(`${apiUrl}/events/facets?${params.toString()}`);
+      if (!response.ok) throw new Error(`Facets failed: ${response.status}`);
+      const data = await response.json();
+      const facets = data.data || {};
+      setAvailableCities(facets.cities || []);
+      setAvailableGenres(facets.genres || []);
+      setAvailableOrganizers(facets.organizers || []);
+      setAvailableVenues(facets.venues || []);
+    } catch (err) {
+      console.error('Error fetching facets:', err);
+    }
+  }, [apiUrl, buildEventsQuery]);
+
+  const fetchEventsPage = useCallback(async ({ reset = false } = {}) => {
+    if (fetchInFlightRef.current && !reset) return;
+    const generation = reset
+      ? (fetchGenerationRef.current += 1)
+      : fetchGenerationRef.current;
+    fetchInFlightRef.current = true;
+    const offset = reset ? 0 : fetchOffsetRef.current;
+    if (reset) {
+      setLoading(true);
+      setError(null);
+      setHasMore(false);
+    } else {
+      setLoadingMore(true);
+    }
+    try {
+      const params = buildEventsQuery(offset);
+      const response = await fetch(`${apiUrl}/events?${params.toString()}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+      const data = await response.json();
+      if (generation !== fetchGenerationRef.current) return;
+
+      const page = (data.data || []).map((event) => ({
+        ...event,
+        genre: event.genre && String(event.genre).trim() ? event.genre : 'None',
+      }));
+
+      setTotalCount(Number(data.total) || 0);
+      setHasMore(Boolean(data.has_more));
+      fetchOffsetRef.current = offset + page.length;
+      setEvents((prev) => (reset ? page : [...prev, ...page]));
+      if (data.phoneNumber) {
+        setActualPhoneNumber(data.phoneNumber);
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      if (generation !== fetchGenerationRef.current) return;
+      if (reset) {
+        setError('Failed to fetch events. Please try again later.');
+        setEvents([]);
+        setHasMore(false);
+        setTotalCount(0);
+      }
+    } finally {
+      if (generation === fetchGenerationRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+        fetchInFlightRef.current = false;
+      }
+    }
+  }, [apiUrl, buildEventsQuery]);
+
+  const loadMoreEvents = useCallback(() => {
+    if (!hasMore || loadingMore || loading || fetchInFlightRef.current) return;
+    fetchEventsPage({ reset: false });
+  }, [hasMore, loadingMore, loading, fetchEventsPage]);
+
+  // Initial load + auth hash changes
   useEffect(() => {
-    // Only run once on mount or when phone hash changes
-    const fetchData = async () => {
+    const run = async () => {
       if (!hasLoadedInitialData.current) {
-        await fetchEvents();
+        await fetchEventsPage({ reset: true });
         hasLoadedInitialData.current = true;
       } else if (
-        urlPhoneHash !== prevUrlPhoneHash.current || 
+        urlPhoneHash !== prevUrlPhoneHash.current ||
         authPhoneHash !== prevAuthPhoneHash.current
       ) {
-        await fetchEvents();
+        await fetchEventsPage({ reset: true });
       }
-      
-      // Update previous hash values regardless
       prevUrlPhoneHash.current = urlPhoneHash;
       prevAuthPhoneHash.current = authPhoneHash;
     };
-    
-    fetchData();
-    
-    // Using an empty dependency array ensures this only runs once on mount
+    run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Use useMemo to compute filtered events instead of storing in state
-  const filteredEvents = useMemo(() => {
-    let result = events;
-    
-    // Apply date range filter
-    if (dateRange.start) {
-      const startDate = startOfLocalDay(dateRange.start);
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return eventDate && eventDate >= startDate;
-      });
-    } else {
-      const today = startOfLocalDay();
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return !eventDate || eventDate >= today;
-      });
-    }
-    
-    if (dateRange.end) {
-      const endDate = startOfLocalDay(dateRange.end);
-      result = result.filter(event => {
-        const eventDate = parseEventDate(event.raw_date);
-        return eventDate && eventDate <= endDate;
-      });
-    }
-    
-    // Apply search term filter
-    if (searchTerm.trim() !== '') {
-      const term = searchTerm.trim().toLowerCase();
-      result = result.filter(event => 
-        event.event_name.toLowerCase().includes(term)
-      );
-    }
-    
-    // Apply genre filter
-    if (selectedGenres.length > 0) {
-      result = result.filter(event => {
-        // Handle empty genre case
-        if (!event.genre || !event.genre.trim()) {
-          return selectedGenres.includes('None');
-        }
-        
-        const eventGenres = event.genre.split(', ').map(g => g.trim());
-        return selectedGenres.some(genre => eventGenres.includes(genre));
-      });
-    }
-    
-    // Apply city filter
-    if (selectedCities.length > 0) {
-      result = result.filter(event => {
-        const city = extractCityFromVenue(event.venue);
-        return city && selectedCities.includes(city);
-      });
-    }
-    
-    // Apply organizer filter
-    if (selectedOrganizers.length > 0) {
-      result = result.filter(event => 
-        selectedOrganizers.includes(event.organizer.trim())
-      );
-    }
-    
-    // Apply venue filter
-    if (selectedVenues.length > 0) {
-      result = result.filter(event => 
-        selectedVenues.includes(event.venue.trim())
-      );
-    }
-    
-    // Apply starred events filter
-    if (showStarredOnly) {
-      result = result.filter(event => event.is_favorite === true);
-    }
-    
-    if (priceSort !== "none") {
-      return [...result].sort((a, b) => {
-        const priceA = extractPrice(a.ticket_info);
-        const priceB = extractPrice(b.ticket_info);
-        return priceSort === "asc" ? priceA - priceB : priceB - priceA;
-      });
-    }
-
-    return [...result].sort(compareEventsByDate);
-  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly]);
-
-  // Memoize displayed events for current page
-  const displayedEvents = useMemo(() => {
-    const indexOfLastEvent = currentPage * eventsPerPage;
-    const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
-    return filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
-  }, [filteredEvents, currentPage, eventsPerPage]);
-
-  // Memoize the filter counts calculation
-  const calculateFilteredEventsForCounts = useCallback((excludeFilterType) => {
-    let result = events;
-    
-    // Apply date range filter
-    if (excludeFilterType !== 'date') {
-      if (dateRange.start) {
-        const startDate = startOfLocalDay(dateRange.start);
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return eventDate && eventDate >= startDate;
-        });
-      } else {
-        const today = startOfLocalDay();
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return !eventDate || eventDate >= today;
-        });
-      }
-      
-      if (dateRange.end) {
-        const endDate = startOfLocalDay(dateRange.end);
-        result = result.filter(event => {
-          const eventDate = parseEventDate(event.raw_date);
-          return eventDate && eventDate <= endDate;
-        });
-      }
-    }
-    
-    // Apply search term filter
-    if (excludeFilterType !== 'search' && searchTerm.trim() !== '') {
-      const term = searchTerm.trim().toLowerCase();
-      result = result.filter(event => 
-        event.event_name.toLowerCase().includes(term)
-      );
-    }
-    
-    // Apply genre filter
-    if (excludeFilterType !== 'genres' && selectedGenres.length > 0) {
-      result = result.filter(event => {
-        // Handle empty genre case
-        if (!event.genre || !event.genre.trim()) {
-          return selectedGenres.includes('None');
-        }
-        
-        const eventGenres = event.genre.split(', ').map(g => g.trim());
-        return selectedGenres.some(genre => eventGenres.includes(genre));
-      });
-    }
-    
-    // Apply city filter
-    if (excludeFilterType !== 'cities' && selectedCities.length > 0) {
-      result = result.filter(event => {
-        const city = extractCityFromVenue(event.venue);
-        return city && selectedCities.includes(city);
-      });
-    }
-    
-    // Apply organizer filter
-    if (excludeFilterType !== 'organizers' && selectedOrganizers.length > 0) {
-      result = result.filter(event => 
-        selectedOrganizers.includes(event.organizer.trim())
-      );
-    }
-    
-    // Apply venue filter
-    if (excludeFilterType !== 'venues' && selectedVenues.length > 0) {
-      result = result.filter(event => 
-        selectedVenues.includes(event.venue.trim())
-      );
-    }
-    
-    // Apply starred filter
-    if (excludeFilterType !== 'starred' && showStarredOnly) {
-      result = result.filter(event => event.is_favorite === true);
-    }
-    
-    return result;
-  }, [events, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, showStarredOnly]);
-
-  // Memoize filtered events for counts to prevent recreation
-  const filteredEventsForCounts = useMemo(() => {
-    if (filterCount === 0 || !activeFilterModal) {
-      return events;
-    }
-    
-    // Skip the current filter type when calculating available options
-    return calculateFilteredEventsForCounts(activeFilterModal);
-  }, [events, activeFilterModal, filterCount, dateRange, selectedGenres, searchTerm, selectedOrganizers, selectedVenues, selectedCities, priceSort, showStarredOnly, calculateFilteredEventsForCounts]);
-
-  // Update pagination when filtered events change
+  // Refetch when server-side filters change (debounced for typing)
+  const skipFilterFetchRef = useRef(true);
   useEffect(() => {
-    // Reset to first page when filters change
-    setCurrentPage(1);
-  }, [filteredEvents.length]);
+    if (!hasLoadedInitialData.current) return undefined;
+    if (skipFilterFetchRef.current) {
+      skipFilterFetchRef.current = false;
+      return undefined;
+    }
+    const handle = setTimeout(() => {
+      fetchOffsetRef.current = 0;
+      fetchEventsPage({ reset: true });
+    }, searchTerm ? 300 : 0);
+    return () => clearTimeout(handle);
+    // intentionally omit fetchEventsPage to avoid refetch loops from callback identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedCities,
+    selectedGenres,
+    selectedVenues,
+    selectedOrganizers,
+    searchTerm,
+    dateRange.start,
+    dateRange.end,
+    priceSort,
+    showStarredOnly,
+    actualPhoneNumber,
+    authPhoneNumber,
+  ]);
 
-  // Extract filter options only when modal is opened
+  // Load facet options when a filter modal opens
   useEffect(() => {
-    if (activeFilterModal && filteredEventsForCounts.length > 0) {
-      extractFilterOptions(filteredEventsForCounts);
-    }
-  }, [activeFilterModal, filteredEventsForCounts]);
+    if (!activeFilterModal) return;
+    const excludeMap = {
+      genres: 'genres',
+      organizers: 'organizers',
+      venues: 'venues',
+      cities: 'cities',
+    };
+    fetchFacets(excludeMap[activeFilterModal] || null);
+  }, [activeFilterModal, fetchFacets]);
 
-  // Extract unique filter options with counts from the provided events array
-  const extractFilterOptions = useCallback((eventsArray) => {
-    if (!eventsArray || eventsArray.length === 0) return;
-  
-    // Extract unique genres with counts
-    if (activeFilterModal === 'genres') {
-    const genreCounts = {};
-      eventsArray.forEach(event => {
-        const eventGenres = event.genre && event.genre.trim() ? 
-          event.genre.split(', ').map(g => g.trim()) : 
-          ['None'];
-        
-        eventGenres.forEach(genre => {
-        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-      });
-    });
-    const genres = Object.entries(genreCounts)
-      .map(([genre, count]) => ({ name: genre, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableGenres(genres);
-    }
-    
-    // Extract unique organizers with counts
-    else if (activeFilterModal === 'organizers') {
-    const organizerCounts = {};
-      eventsArray.forEach(event => {
-      const organizer = event.organizer.trim();
-      if (organizer) {
-        organizerCounts[organizer] = (organizerCounts[organizer] || 0) + 1;
-      }
-    });
-    const organizers = Object.entries(organizerCounts)
-      .map(([organizer, count]) => ({ name: organizer, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableOrganizers(organizers);
-    }
-    
-    // Extract unique venues with counts
-    else if (activeFilterModal === 'venues') {
-    const venueCounts = {};
-      eventsArray.forEach(event => {
-      const venue = event.venue.trim();
-      venueCounts[venue] = (venueCounts[venue] || 0) + 1;
-    });
-    const venues = Object.entries(venueCounts)
-      .map(([venue, count]) => ({ name: venue, count }))
-      .sort((a, b) => b.count - a.count);
-      setAvailableVenues(venues);
-    }
-    
-    // Extract cities from venue strings with counts
-    else if (activeFilterModal === 'cities') {
-    const cityCounts = {};
-      eventsArray.forEach(event => {
-        const city = extractCityFromVenue(event.venue);
-      if (city) {
-        cityCounts[city] = (cityCounts[city] || 0) + 1;
-      }
-    });
-    const cities = Object.entries(cityCounts)
-      .map(([city, count]) => ({ name: city, count }))
-      .sort((a, b) => b.count - a.count);
-    setAvailableCities(cities);
-  }
-  }, [activeFilterModal]);
+  // Keep city list available for geo matching even before opening the modal
+  useEffect(() => {
+    if (!hasLoadedInitialData.current) return;
+    if (availableCities.length) return;
+    fetchFacets();
+  }, [availableCities.length, fetchFacets]);
 
-  // Update filter count for badge
+  // Update filter count for badge  // Update filter count for badge
   useEffect(() => {
     let count = 0;
     if (dateRange.start || dateRange.end) count++;
@@ -414,7 +307,8 @@ const EventsPage = () => {
     const skipGeo = storedFiltersRef.current?.skipGeo
       || storedFiltersRef.current?.selectedCities?.length
       || selectedCities.length;
-    if (!events.length || geoTriedRef.current || skipGeo) {
+    const cityNames = availableCities.map((item) => item.name || item).filter(Boolean);
+    if (!cityNames.length || geoTriedRef.current || skipGeo) {
       return undefined;
     }
     let cancelled = false;
@@ -423,7 +317,7 @@ const EventsPage = () => {
       if (cancelled) return;
       geoTriedRef.current = true;
       if (!geo?.city) return;
-      const match = matchEventCity(geo, collectVenueCities(events));
+      const match = matchEventCity(geo, cityNames);
       if (match) {
         setSelectedCities([match]);
         trackEvent('geo_city_filter', { city: match, source: 'ip' });
@@ -432,11 +326,11 @@ const EventsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [events, selectedCities.length]);
+  }, [availableCities, selectedCities.length]);
 
   useEffect(() => {
-    if (!events.length || !selectedCities.length) return undefined;
-    const venueCities = collectVenueCities(events);
+    if (!availableCities.length || !selectedCities.length) return undefined;
+    const venueCities = availableCities.map((item) => item.name || item).filter(Boolean);
     const upgraded = selectedCities.map((city) => {
       const specific = venueCities.find((option) =>
         option !== city && option.toLowerCase().startsWith(`${city.toLowerCase()},`)
@@ -447,7 +341,7 @@ const EventsPage = () => {
       setSelectedCities(upgraded);
     }
     return undefined;
-  }, [events, selectedCities]);
+  }, [availableCities, selectedCities]);
 
   // Track filter changes
   useEffect(() => {
@@ -676,108 +570,6 @@ const EventsPage = () => {
     }
   };
 
-  // Check which events are favorited for the current user - optimized
-  const checkFavoritedEvents = useCallback(async (eventsData) => {
-    // Use actualPhoneNumber if available, otherwise fall back to authPhoneNumber
-    const phoneNumber = actualPhoneNumber || authPhoneNumber;
-    
-    if (!isLoggedIn || !phoneNumber) {
-      return eventsData; // Return original data if not logged in or no phone number
-    }
-
-    try {
-      const url = `${apiUrl}/favorite_events_by_phone?phone_number=${encodeURIComponent(phoneNumber)}`;
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (!response.ok) {
-        return eventsData; // Return original data on API error
-      }
-
-      // Safely parse the JSON response
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        return eventsData; // Return original data on parse error
-      }
-      
-      // The server returns data in data.data format based on your server implementation
-      const favoritedEvents = data.data || [];
-      
-      if (favoritedEvents.length === 0) {
-        return eventsData;
-      }
-      
-      // Use Map for O(1) lookups instead of array.some() which is O(n)
-      const favoritedMap = new Map();
-      favoritedEvents.forEach(favEvent => {
-        // Create a unique key for each event using event name, venue, and date
-        const key = `${favEvent.event_name}|${favEvent.venue}|${favEvent.date}`;
-        favoritedMap.set(key, true);
-      });
-      
-      // Mark events as favorited using the map for fast lookups
-      return eventsData.map(event => {
-        // Create the same key format for matching
-        const key = `${event.event_name}|${event.venue}|${event.date}`;
-        return {
-          ...event,
-          is_favorite: favoritedMap.has(key)
-        };
-      });
-    } catch (error) {
-      console.error("Error checking favorited events:", error);
-      return eventsData; // Return original data on error
-    }
-  }, [apiUrl, isLoggedIn, actualPhoneNumber, authPhoneNumber]);
-
-  // Fetch events - optimized
-  async function fetchEvents() {
-    try {
-      const url = `${apiUrl}/events`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      let eventsData = data.data || [];
-      
-      // Process events to replace empty genres with 'None'
-      eventsData = eventsData.map(event => ({
-        ...event,
-        genre: event.genre && event.genre.trim() ? event.genre : 'None'
-      }));
-      
-      // Check which events are favorited for the current user
-      const eventsWithFavorites = await checkFavoritedEvents(eventsData);
-      
-      // Update the events state with the favorited status
-      setEvents(eventsWithFavorites);
-      
-      if (data.phoneNumber) {
-        setActualPhoneNumber(data.phoneNumber);
-      }
-      
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      setError("Failed to fetch events. Please try again later.");
-      setLoading(false);
-    }
-  }
 
   // Reset all filters
   const resetFilters = () => {
@@ -1139,7 +931,8 @@ const EventsPage = () => {
         selectedCities={selectedCities}
         openFilterModal={openFilterModal}
         events={events}
-        filteredEvents={filteredEvents}
+        filteredEvents={events}
+        totalCount={totalCount}
         showStarredOnly={showStarredOnly}
         setShowStarredOnly={setShowStarredOnly}
         isLoggedIn={isLoggedIn}
@@ -1168,12 +961,12 @@ const EventsPage = () => {
       <div className="w-full max-w-5xl px-4 pb-28">
         <EventList
           loading={loading}
+          loadingMore={loadingMore}
           error={error}
-          filteredEvents={filteredEvents}
-          displayedEvents={displayedEvents}
-          currentPage={currentPage}
-          eventsPerPage={eventsPerPage}
-          onPageChange={setCurrentPage}
+          events={events}
+          hasMore={hasMore}
+          totalCount={totalCount}
+          onLoadMore={loadMoreEvents}
           onFavoriteEvent={handleFavoriteEvent}
           showStarredOnly={showStarredOnly}
         />
@@ -1195,7 +988,7 @@ const EventsPage = () => {
         apiUrl={apiUrl}
         onAdd={(event) => {
           setEvents((prev) => [event, ...prev]);
-          setCurrentPage(1);
+          setTotalCount((prev) => prev + 1);
         }}
       />
       
