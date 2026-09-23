@@ -22,6 +22,7 @@ const FilterSection = ({
   openFilterModal,
   events,
   filteredEvents,
+  totalCount,
   showStarredOnly,
   setShowStarredOnly,
   isLoggedIn,
@@ -385,7 +386,7 @@ const FilterSection = ({
             <div className={`mt-4 text-center text-sm ${
               darkMode ? 'text-gray-400' : 'text-gray-500'
             } transition-colors duration-300`}>
-              Showing {filteredEvents.length} of {events.length} events
+              Showing {filteredEvents.length} of {totalCount ?? events.length} events
             </div>
         </div>
         <div className={`p-4 border-t flex justify-end ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
