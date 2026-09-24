@@ -1,9 +1,12 @@
-// tailwind.config.js
+// Tailwind 2.x (postcss7-compat) uses `purge`, not `content`.
 module.exports = {
-    content: [
-      "./index.html",
-      "./src/**/*.{js,ts,jsx,tsx}",
-    ],
+    purge: {
+      enabled: true,
+      content: [
+        "./index.html",
+        "./src/**/*.{js,ts,jsx,tsx}",
+      ],
+    },
     darkMode: 'class', // Enable dark mode using class strategy
     theme: {
       extend: {

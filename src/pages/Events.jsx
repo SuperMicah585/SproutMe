@@ -152,7 +152,7 @@ const EventsPage = () => {
     });
   }, [events, scoreSort]);
 
-  const fetchEventsPage = useCallback(async ({ reset }) => {
+  const fetchEventsPage = useCallback(async ({ reset, soft = false } = {}) => {
     if (reset) {
       fetchAbortRef.current?.abort();
       const controller = new AbortController();
@@ -160,7 +160,10 @@ const EventsPage = () => {
       requestIdRef.current += 1;
       const requestId = requestIdRef.current;
       loadingMoreRef.current = false;
-      setLoading(true);
+      // Soft refetch keeps current cards visible (e.g. geo city apply).
+      if (!soft || events.length === 0) {
+        setLoading(true);
+      }
       setLoadingMore(false);
       setError(null);
 
@@ -264,9 +267,13 @@ const EventsPage = () => {
     fetchEventsPage({ reset: false });
   }, [fetchEventsPage]);
 
+  const filtersReadyRef = useRef(false);
   // Refetch when server-side filters change
   useEffect(() => {
-    fetchEventsPage({ reset: true });
+    // First mount always hard-loads; later geo/filter changes can soft-refresh.
+    const soft = filtersReadyRef.current && events.length > 0;
+    filtersReadyRef.current = true;
+    fetchEventsPage({ reset: true, soft });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     debouncedSearch,
@@ -378,22 +385,24 @@ const EventsPage = () => {
     });
   }, [selectedCities, selectedGenres, selectedOrganizers, selectedVenues, searchTerm, priceSort, scoreSort]);
 
+  // Geo after first paint: don't block initial /events, and only soft-refetch if a city matches.
   useEffect(() => {
     const skipGeo = storedFiltersRef.current?.skipGeo
       || storedFiltersRef.current?.selectedCities?.length
       || selectedCities.length;
-    if (geoTriedRef.current || skipGeo) {
+    if (geoTriedRef.current || skipGeo || loading || !hasLoadedInitialData.current) {
       return undefined;
     }
     let cancelled = false;
     (async () => {
-      const facets = await fetchFacets();
+      geoTriedRef.current = true;
+      const [facets, geo] = await Promise.all([
+        fetchFacets(),
+        lookupApproxLocation(),
+      ]);
       if (cancelled) return;
       const cities = (facets?.cities || []).map((item) => item.name).filter(Boolean);
       facetCitiesRef.current = cities;
-      const geo = await lookupApproxLocation();
-      if (cancelled) return;
-      geoTriedRef.current = true;
       if (!geo?.city || !cities.length) return;
       const match = matchEventCity(geo, cities);
       if (match) {
@@ -404,7 +413,7 @@ const EventsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedCities.length, fetchFacets]);
+  }, [selectedCities.length, fetchFacets, loading, events.length]);
 
   useEffect(() => {
     const cities = facetCitiesRef.current;
