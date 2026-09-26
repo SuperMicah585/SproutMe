@@ -50,6 +50,54 @@ const METRO_PARENT = {
   ...Object.fromEntries([...SEATTLE_METRO].map((city) => [city, 'seattle'])),
 };
 
+/** Common event.city / venue labels for geo matching without waiting on /events/facets. */
+export const GEO_EVENT_CITIES = [
+  'Seattle',
+  'Portland',
+  'Los Angeles',
+  'San Francisco',
+  'San Diego',
+  'Oakland',
+  'Berkeley',
+  'Sacramento',
+  'New York',
+  'Brooklyn',
+  'Chicago',
+  'Denver',
+  'Boulder',
+  'Austin',
+  'Dallas',
+  'Houston',
+  'San Antonio',
+  'Atlanta',
+  'Miami',
+  'Boston',
+  'Philadelphia',
+  'Washington',
+  'Detroit',
+  'Las Vegas',
+  'Phoenix',
+  'Toronto',
+  'Vancouver',
+  'Montreal',
+  'Minneapolis',
+  'Nashville',
+  'New Orleans',
+  'Salt Lake City',
+  'Tampa',
+  'Orlando',
+  'Charlotte',
+  'Baltimore',
+  'Cleveland',
+  'Columbus',
+  'Kansas City',
+  'St Louis',
+  'Pittsburgh',
+  'Raleigh',
+  'Richmond',
+  'Hamtramck',
+];
+
 export const normalizePlace = (value) =>
   String(value || '')
     .toLowerCase()
@@ -119,7 +167,7 @@ export const matchEventCity = (geo, venueCities) => {
   return best && best.score >= 60 ? best.option : null;
 };
 
-const fetchJson = async (url, timeoutMs = 2500) => {
+const fetchJson = async (url, timeoutMs = 900) => {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -131,7 +179,11 @@ const fetchJson = async (url, timeoutMs = 2500) => {
   }
 };
 
-export const lookupApproxLocation = async () => {
+/**
+ * Resolve approximate IP location. Providers race in parallel; first success wins.
+ * Caps total wait so geo never blocks first paint for multiple seconds.
+ */
+export const lookupApproxLocation = async (timeoutMs = 900) => {
   const sources = [
     {
       url: 'https://get.geojs.io/v1/ip/geo.json',
@@ -151,13 +203,33 @@ export const lookupApproxLocation = async () => {
     },
   ];
 
-  for (const source of sources) {
-    try {
-      const geo = source.parse(await fetchJson(source.url));
-      if (geo?.city) return geo;
-    } catch {
-      // try the next provider
-    }
-  }
-  return null;
+  return new Promise((resolve) => {
+    let settled = false;
+    let pending = sources.length;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const timer = window.setTimeout(() => finish(null), timeoutMs + 50);
+
+    sources.forEach(async (source) => {
+      try {
+        const geo = source.parse(await fetchJson(source.url, timeoutMs));
+        if (geo?.city) {
+          window.clearTimeout(timer);
+          finish(geo);
+          return;
+        }
+      } catch {
+        // try others
+      }
+      pending -= 1;
+      if (pending <= 0) {
+        window.clearTimeout(timer);
+        finish(null);
+      }
+    });
+  });
 };

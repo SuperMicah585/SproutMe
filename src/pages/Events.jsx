@@ -15,7 +15,11 @@ import { useTheme } from "../context/ThemeContext";
 import { useToast } from "./Components/ToastNotification";
 import { trackEvent } from "../utils/analytics";
 import { getFiltersFromStorage, saveFiltersToStorage } from "../utils/filterStorage";
-import { lookupApproxLocation, matchEventCity } from "../utils/cityFromLocation";
+import {
+  GEO_EVENT_CITIES,
+  lookupApproxLocation,
+  matchEventCity,
+} from "../utils/cityFromLocation";
 
 const PAGE_SIZE = 50;
 
@@ -52,6 +56,13 @@ const EventsPage = () => {
   const storedFiltersRef = useRef(getFiltersFromStorage());
   const geoTriedRef = useRef(false);
   const facetCitiesRef = useRef([]);
+  const shouldTryGeoOnBoot = !(
+    storedFiltersRef.current?.skipGeo
+    || storedFiltersRef.current?.selectedCities?.length
+  );
+  // Wait for a fast geo city (or timeout) before the first /events call so we
+  // don't pay for an unfiltered catalog load + Seattle refetch on cold start.
+  const [bootstrapReady, setBootstrapReady] = useState(!shouldTryGeoOnBoot);
 
   // Filter states
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
@@ -268,14 +279,41 @@ const EventsPage = () => {
   }, [fetchEventsPage]);
 
   const filtersReadyRef = useRef(false);
-  // Refetch when server-side filters change
+
+  // Resolve city from IP before the first events request (raced, ~1s cap).
   useEffect(() => {
-    // First mount always hard-loads; later geo/filter changes can soft-refresh.
+    if (!shouldTryGeoOnBoot || geoTriedRef.current) {
+      setBootstrapReady(true);
+      return undefined;
+    }
+    geoTriedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const geo = await lookupApproxLocation(900);
+      if (!cancelled && geo?.city) {
+        const match = matchEventCity(geo, GEO_EVENT_CITIES);
+        if (match) {
+          setSelectedCities([match]);
+          trackEvent('geo_city_filter', { city: match, source: 'ip' });
+        }
+      }
+      if (!cancelled) setBootstrapReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldTryGeoOnBoot]);
+
+  // Refetch when server-side filters change (after geo bootstrap).
+  useEffect(() => {
+    if (!bootstrapReady) return undefined;
+    // First mount always hard-loads; later filter changes can soft-refresh.
     const soft = filtersReadyRef.current && events.length > 0;
     filtersReadyRef.current = true;
     fetchEventsPage({ reset: true, soft });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    bootstrapReady,
     debouncedSearch,
     selectedCities,
     selectedGenres,
@@ -384,51 +422,6 @@ const EventsPage = () => {
       skipGeo: Boolean(storedFiltersRef.current?.skipGeo),
     });
   }, [selectedCities, selectedGenres, selectedOrganizers, selectedVenues, searchTerm, priceSort, scoreSort]);
-
-  // Geo after first paint: don't block initial /events, and only soft-refetch if a city matches.
-  useEffect(() => {
-    const skipGeo = storedFiltersRef.current?.skipGeo
-      || storedFiltersRef.current?.selectedCities?.length
-      || selectedCities.length;
-    if (geoTriedRef.current || skipGeo || loading || !hasLoadedInitialData.current) {
-      return undefined;
-    }
-    let cancelled = false;
-    (async () => {
-      geoTriedRef.current = true;
-      const [facets, geo] = await Promise.all([
-        fetchFacets(),
-        lookupApproxLocation(),
-      ]);
-      if (cancelled) return;
-      const cities = (facets?.cities || []).map((item) => item.name).filter(Boolean);
-      facetCitiesRef.current = cities;
-      if (!geo?.city || !cities.length) return;
-      const match = matchEventCity(geo, cities);
-      if (match) {
-        setSelectedCities([match]);
-        trackEvent('geo_city_filter', { city: match, source: 'ip' });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCities.length, fetchFacets, loading, events.length]);
-
-  useEffect(() => {
-    const cities = facetCitiesRef.current;
-    if (!cities.length || !selectedCities.length) return undefined;
-    const upgraded = selectedCities.map((city) => {
-      const specific = cities.find((option) =>
-        option !== city && option.toLowerCase().startsWith(`${city.toLowerCase()},`)
-      );
-      return specific || city;
-    });
-    if (upgraded.some((city, index) => city !== selectedCities[index])) {
-      setSelectedCities(upgraded);
-    }
-    return undefined;
-  }, [selectedCities, totalEvents]);
 
   // Track filter changes
   useEffect(() => {
