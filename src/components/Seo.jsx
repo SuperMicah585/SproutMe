@@ -28,11 +28,7 @@ const ROUTES = {
     description: 'Finish setting up your SproutMe account.',
     robots: 'noindex,nofollow',
   },
-  '/dashboard': {
-    title: 'Dashboard | SproutMe',
-    description: 'Manage your SproutMe preferences.',
-    robots: 'noindex,nofollow',
-  },
+
   '/favorited_events': {
     title: 'Favorite Events | SproutMe',
     description: 'Saved EDM shows on SproutMe.',
