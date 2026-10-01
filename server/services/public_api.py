@@ -49,13 +49,17 @@ Evidence pack:
 - later: nearby/out-of-window hits if data is empty
 - applied: filters that actually ran
 - miss_reason: honest empty result (say this; do not substitute random shows)
+- score_context: what each score field means — use this when explaining numbers to the user
 
-Event fields:
-- score_artist: 0–100 headliner popularity (absent if unknown)
-- score_hot: 0–100 breakout / rising heat (absent if unknown)
-- score_venue: 0–100 venue quality signal (absent if unknown)
-  Rank by weighting these yourself for the user’s ask (e.g. prefer hot for “what’s buzzing”, venue for “nice room”, artist for big names). Do not assume a single blended score.
-- lat, lng, place_name: venue geo when known — use for distance/neighborhood talk; if missing, do not invent
+Score fields (each 0–100 when present; omit means unknown — not zero):
+- score_artist: catalog popularity of the headliner (Spotify-style popularity). High = widely known artist. NOT ticket sales, sell-outs, or local demand.
+- score_hot: breakout / rising heat — popularity relative to follower base and/or recent popularity rise in SproutMe’s artist cache. High = “heating up” artist signal. NOT verified buzz, chart position, or ticket demand.
+- score_venue: venue quality from Google Places (review volume + music-venue type boost; stadiums downweighted). High = established / well-reviewed music room. NOT how packed tonight’s show is.
+
+Rank by weighting these yourself for the user’s ask (e.g. hot for “what’s buzzing”, venue for “nice room”, artist for big names). When you cite a score, say what it measures in plain language — never imply ticket sales or guaranteed demand.
+
+Other fields:
+- lat, lng, place_name: venue geo when known — distance/neighborhood talk only; if missing, do not invent
 - is_favorite: true when the logged-in user already saved this show
 - headliner, genre, venue, city, ticket_info, event_url: catalog facts
 
@@ -69,13 +73,33 @@ Keep answers short: lead with 1–2 best options, then offer to refine.
 """
 
 MCP_INSTRUCTIONS = (
-    "SproutMe EDM catalog. Tools return compact evidence JSON — you narrate and reason. "
-    "Never invent shows. Use search_events / find_artist_shows / get_event for catalog. "
-    "Scores are separate: score_artist, score_hot, score_venue (each 0-100 when present) — weight them for the user’s intent; "
-    "no blended score. lat/lng/place_name for location when present; is_favorite when session_token is passed. "
+    "SproutMe EDM catalog. Tools return compact evidence JSON — you narrate and reason. Never invent shows. "
+    "Scores are separate 0-100 fields (see score_context on each search result): "
+    "score_artist = headliner catalog popularity (not ticket sales); "
+    "score_hot = breakout/rising heat from popularity vs followers and recent rise (not verified demand); "
+    "score_venue = Places review-volume / music-venue signal (not how sold-out tonight is). "
+    "Weight them for the user’s intent; explain scores using score_context. "
+    "lat/lng/place_name for location when present; is_favorite when session_token is passed. "
     "Login: start_sms_login → verify_sms_login → session_token for list_favorites / set_favorite. "
     "If data is empty, use later or miss_reason."
 )
+
+SCORE_CONTEXT = {
+    "score_artist": (
+        "0–100 headliner catalog popularity (Spotify-style). "
+        "High means a widely known artist. Not ticket sales, sell-outs, or local demand."
+    ),
+    "score_hot": (
+        "0–100 breakout / rising heat from SproutMe’s artist cache: popularity relative to follower base "
+        "and/or recent popularity rise. High means the artist looks like they are heating up. "
+        "Not verified social buzz, charts, or ticket demand."
+    ),
+    "score_venue": (
+        "0–100 venue signal from Google Places: review volume plus a boost for music-venue types "
+        "(stadiums downweighted). High means an established / well-reviewed room. "
+        "Not how packed or sold-out tonight’s show is."
+    ),
+}
 
 _events_cache = {"at": 0.0, "events": None}
 
@@ -366,6 +390,7 @@ def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAUL
         "later": later_page,
         "applied": applied,
         "miss_reason": miss_reason,
+        "score_context": SCORE_CONTEXT,
     }
 
 
@@ -380,6 +405,7 @@ def find_artist_shows(events, artist, city=None, date=None, limit=5, favorite_se
             "later": [],
             "applied": {"artist": artist or None, "city": city, "date": date},
             "miss_reason": "Provide an artist name.",
+            "score_context": SCORE_CONTEXT,
         }
     city_l = (city or "").strip().lower()
     start, end = parse_date_window(date)
@@ -449,6 +475,7 @@ def find_artist_shows(events, artist, city=None, date=None, limit=5, favorite_se
         "later": later_out,
         "applied": applied,
         "miss_reason": miss_reason,
+        "score_context": SCORE_CONTEXT,
     }
 
 
@@ -600,10 +627,10 @@ Do not scrape the website. Never invent shows.
 MCP tools: search_events, find_artist_shows, get_event, start_sms_login, verify_sms_login, list_favorites, set_favorite.
 add_event is write-gated and omitted from the default plugin tool list.
 
-Evidence pack: data, later, applied, miss_reason.
+Evidence pack: data, later, applied, miss_reason, score_context.
 Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
-score_artist, score_hot, score_venue (each 0-100 when known — weight yourself), lat, lng, place_name,
-is_favorite (when logged in).
+score_artist (catalog popularity — not ticket sales), score_hot (breakout/rising — not verified demand),
+score_venue (Places venue signal — not sell-out), lat, lng, place_name, is_favorite (when logged in).
 
 Website: https://sproutme-please.com (browse only; SMS show-finder is retired).
 """

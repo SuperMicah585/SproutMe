@@ -16,9 +16,9 @@ Do not scrape this website. Never invent shows. SMS show-finder is retired.
 
 MCP tools: search_events, find_artist_shows, get_event, start_sms_login, verify_sms_login, list_favorites, set_favorite.
 
-Evidence pack: data, later, applied, miss_reason.
+Evidence pack: data, later, applied, miss_reason, score_context.
 Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
-score_artist, score_hot, score_venue (each 0-100 when known — weight yourself), lat, lng, place_name,
-is_favorite (when logged in).
+score_artist (catalog popularity — not ticket sales), score_hot (breakout/rising — not verified demand),
+score_venue (Places venue signal — not sell-out), lat, lng, place_name, is_favorite (when logged in).
 
 Website: https://sproutme-please.com
