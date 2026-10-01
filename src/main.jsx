@@ -23,6 +23,7 @@ import { ToastContainer } from './pages/Components/ToastNotification.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Seo from './components/Seo';
+import ChatGptWidget from './components/events/ChatGptWidget';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -42,6 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/events" element={<EventsPage />} />
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
           </Routes>
+          <ChatGptWidget />
         </Router>
         <ToastContainer />
       </AuthProvider>

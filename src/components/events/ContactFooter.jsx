@@ -1,8 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
-
-const CHATGPT_HREF = 'https://chatgpt.com/';
+import { CHATGPT_HREF } from './ChatGptWidget';
 
 const ContactFooter = () => {
   const { darkMode } = useTheme();
@@ -15,7 +14,7 @@ const ContactFooter = () => {
         <p className={`text-sm ${
           darkMode ? 'text-gray-400' : 'text-gray-600'
         } transition-colors duration-300`}>
-          Ask in{' '}
+          Ask SproutMe in{' '}
           <a
             href={CHATGPT_HREF}
             target="_blank"
@@ -27,7 +26,7 @@ const ContactFooter = () => {
           >
             ChatGPT
           </a>
-          {' '}(SproutMe plugin), or email{' '}
+          {' '}for show recs, or email{' '}
           <a
             href="mailto:micahphlps@gmail.com"
             className={`${

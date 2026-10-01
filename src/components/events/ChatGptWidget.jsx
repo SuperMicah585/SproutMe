@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
-import { formatSmsNumber, getSmsNumber } from './SmsIntroModal';
 
-const COLLAPSE_KEY = 'sproutme_sms_widget_collapsed';
+export const CHATGPT_HREF = 'https://chatgpt.com/';
+const COLLAPSE_KEY = 'sproutme_chatgpt_widget_collapsed';
 
-const SmsWidget = () => {
+const ChatGptWidget = () => {
   const { pathname } = useLocation();
   const { darkMode } = useTheme();
   const [collapsed, setCollapsed] = useState(() => {
@@ -20,10 +20,6 @@ const SmsWidget = () => {
   if (pathname !== '/events' && !pathname.startsWith('/favorited_events')) {
     return null;
   }
-
-  const smsNumber = getSmsNumber();
-  const displayNumber = formatSmsNumber(smsNumber);
-  const smsHref = `sms:${smsNumber}`;
 
   const setCollapsedState = (next) => {
     setCollapsed(next);
@@ -44,12 +40,12 @@ const SmsWidget = () => {
       <button
         type="button"
         onClick={() => setCollapsedState(false)}
-        aria-label={`Show SproutMe text number ${displayNumber}`}
+        aria-label="Ask SproutMe in ChatGPT"
         className={`${shellClass} h-14 w-14 rounded-full shadow-lg border flex items-center justify-center`}
         style={safeBottom}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`h-6 w-6 ${darkMode ? 'text-green-400' : 'text-green-600'}`} aria-hidden="true">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+          <path d="M12 3c-4.97 0-9 3.58-9 8 0 2.58 1.35 4.88 3.45 6.4L5 21l3.7-1.48C9.74 19.82 10.85 20 12 20c4.97 0 9-3.58 9-8s-4.03-9-9-9zm1.2 12.1h-2.4v-2.4h2.4v2.4zm0-4h-2.4V7h2.4v4.1z" />
         </svg>
       </button>
     );
@@ -59,33 +55,35 @@ const SmsWidget = () => {
     <div className={`${shellClass} max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl border`} style={safeBottom}>
       <div className="flex items-stretch">
         <a
-          href={smsHref}
-          onClick={() => trackEvent('generate_lead', { method: 'sms', source: 'widget' })}
+          href={CHATGPT_HREF}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => trackEvent('generate_lead', { method: 'chatgpt', source: 'widget' })}
           className="flex items-center gap-3 pl-3 pr-2 py-2.5 min-w-0"
         >
           <span
             className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-              darkMode ? 'bg-purple-700 text-white' : 'bg-purple-600 text-white'
+              darkMode ? 'bg-green-700 text-white' : 'bg-green-600 text-white'
             }`}
             aria-hidden="true"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+              <path d="M12 3c-4.97 0-9 3.58-9 8 0 2.58 1.35 4.88 3.45 6.4L5 21l3.7-1.48C9.74 19.82 10.85 20 12 20c4.97 0 9-3.58 9-8s-4.03-9-9-9zm1.2 12.1h-2.4v-2.4h2.4v2.4zm0-4h-2.4V7h2.4v4.1z" />
             </svg>
           </span>
           <span className="min-w-0">
             <span className={`block text-[11px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Text for show recs
+              Ask for show recs
             </span>
-            <span className={`block text-sm font-bold tabular-nums ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
-              {displayNumber}
+            <span className={`block text-sm font-bold ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+              ChatGPT · SproutMe
             </span>
           </span>
         </a>
         <button
           type="button"
           onClick={() => setCollapsedState(true)}
-          aria-label="Minimize text-us widget"
+          aria-label="Minimize ChatGPT widget"
           className={`px-2 ${darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -97,4 +95,4 @@ const SmsWidget = () => {
   );
 };
 
-export default SmsWidget;
+export default ChatGptWidget;
