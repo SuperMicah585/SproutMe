@@ -4,7 +4,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
 
 export const CHATGPT_HREF =
-  import.meta.env.VITE_CHATGPT_PLUGIN_URL || 'https://chatgpt.com/';
+  import.meta.env.VITE_CHATGPT_PLUGIN_URL ||
+  'https://chatgpt.com/plugins/plugins_6abeee04525481918e19e972f151c0ef?utm_source=chatgpt.com';
 const COLLAPSE_KEY = 'sproutme_chatgpt_widget_collapsed';
 
 const ChatGptWidget = () => {
