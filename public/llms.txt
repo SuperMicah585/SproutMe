@@ -2,30 +2,21 @@
 
 SproutMe lists electronic music (EDM) shows across North America.
 
-## For agents (Instinct, Muse, Claude, ChatGPT)
+## Primary surface: ChatGPT plugin / MCP
 
-Do not scrape this website. Use the public JSON API:
+Catalog is source of truth. Tools return compact evidence JSON; ChatGPT narrates.
+Do not scrape this website. Never invent shows. SMS show-finder is retired.
 
-- OpenAPI: https://phelpsm4.pythonanywhere.com/openapi.json
-- Search: https://phelpsm4.pythonanywhere.com/v1/events?city=Seattle&genre=house&limit=10
-- One event: https://phelpsm4.pythonanywhere.com/v1/events/{id}
-- Add event: POST https://phelpsm4.pythonanywhere.com/v1/events
-- MCP: POST https://phelpsm4.pythonanywhere.com/mcp
-- Agent instructions: https://phelpsm4.pythonanywhere.com/llms.txt
+- MCP: https://sproutme-api-production.up.railway.app/mcp
+- OpenAPI: https://sproutme-api-production.up.railway.app/openapi.json
+- Agent instructions: https://sproutme-api-production.up.railway.app/chatgpt/instructions
+- Search: https://sproutme-api-production.up.railway.app/v1/events?city=Seattle&genre=house&date=saturday&limit=8
+- Find artist: https://sproutme-api-production.up.railway.app/v1/artists/shows?artist=Bassvictim&city=Seattle
+- One event: https://sproutme-api-production.up.railway.app/v1/events/{id}
 
-MCP tools: search_events, get_event, add_event.
+MCP tools (reads): search_events, find_artist_shows, get_event.
 
-Muse Code:
+Evidence pack: data, later, applied, miss_reason.
+Each event: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner.
 
-```json
-{
-  "mcp_servers": {
-    "sproutme": {
-      "transport": "streamable_http",
-      "url": "https://phelpsm4.pythonanywhere.com/mcp",
-      "enabled": true,
-      "mode": "optional"
-    }
-  }
-}
-```
+Website: https://sproutme-please.com

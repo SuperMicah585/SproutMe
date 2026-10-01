@@ -1,0 +1,9 @@
+openai>=1.40.0,<2
+flask
+flask-cors
+pytz
+supabase
+twilio
+python-dotenv
+phonenumbers
+gunicorn

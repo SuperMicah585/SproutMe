@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
-import { formatSmsNumber, getSmsNumber } from './SmsIntroModal';
+
+const CHATGPT_HREF = 'https://chatgpt.com/';
 
 const ContactFooter = () => {
   const { darkMode } = useTheme();
@@ -14,18 +15,20 @@ const ContactFooter = () => {
         <p className={`text-sm ${
           darkMode ? 'text-gray-400' : 'text-gray-600'
         } transition-colors duration-300`}>
-          Text{' '}
+          Ask in{' '}
           <a
-            href={`sms:${getSmsNumber()}`}
-            onClick={() => trackEvent('generate_lead', { method: 'sms', source: 'footer' })}
+            href={CHATGPT_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackEvent('generate_lead', { method: 'chatgpt', source: 'footer' })}
             className={`${
               darkMode ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-700'
             } transition-colors duration-300`}
           >
-            {formatSmsNumber(getSmsNumber())}
+            ChatGPT
           </a>
-          {' '}for show recs, or email{' '}
-          <a 
+          {' '}(SproutMe plugin), or email{' '}
+          <a
             href="mailto:micahphlps@gmail.com"
             className={`${
               darkMode ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-700'
@@ -39,4 +42,4 @@ const ContactFooter = () => {
   );
 };
 
-export default ContactFooter; 
+export default ContactFooter;

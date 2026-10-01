@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.venv
+venv
+.env
+.env.*
+!.env.example
+.cache
+*.md
+flask_app_legacy_pre_railway.py

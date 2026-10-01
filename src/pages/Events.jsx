@@ -6,7 +6,6 @@ import FilterModal from "../components/events/FilterModal";
 import ThemeToggle from "../components/events/ThemeToggle";
 import ContactFooter from "../components/events/ContactFooter";
 import LoginPrompt from "../components/events/LoginPrompt";
-import SmsIntroModal, { SMS_STORAGE_KEY } from "../components/events/SmsIntroModal";
 import AddEventModal from "../components/events/AddEventModal";
 import { toggleArrayItem } from "../components/events/eventUtils";
 import sproutIcon from './Components/sprout_icon.png';
@@ -77,7 +76,6 @@ const EventsPage = () => {
   const [sharing, setSharing] = useState(false);
   const [showLoginTooltip, setShowLoginTooltip] = useState(true);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const [showSmsIntro, setShowSmsIntro] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
 
@@ -475,16 +473,6 @@ const EventsPage = () => {
     const hideTooltip = localStorage.getItem('hideLoginTooltip') === 'true';
     setShowLoginTooltip(!hideTooltip && !isLoggedIn);
   }, [isLoggedIn]);
-
-  useEffect(() => {
-    const hideSmsIntro = localStorage.getItem(SMS_STORAGE_KEY) === 'true';
-    setShowSmsIntro(!hideSmsIntro);
-  }, []);
-
-  const closeSmsIntro = useCallback(() => {
-    setShowSmsIntro(false);
-    localStorage.setItem(SMS_STORAGE_KEY, 'true');
-  }, []);
 
   // Optimized favoriting to avoid unnecessary array copies
   const handleFavoriteEvent = useCallback(async (event, index, e) => {
@@ -1076,11 +1064,6 @@ const EventsPage = () => {
       <LoginPrompt
         open={showLoginPrompt}
         onClose={() => setShowLoginPrompt(false)}
-      />
-
-      <SmsIntroModal
-        open={showSmsIntro}
-        onClose={closeSmsIntro}
       />
 
       <AddEventModal
