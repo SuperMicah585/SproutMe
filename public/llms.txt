@@ -4,7 +4,7 @@ SproutMe lists electronic music (EDM) shows across North America.
 
 ## Primary surface: ChatGPT plugin / MCP
 
-Catalog is source of truth. Tools return compact evidence JSON; ChatGPT narrates.
+Catalog is source of truth. Tools return compact evidence JSON; ChatGPT narrates and reasons.
 Do not scrape this website. Never invent shows. SMS show-finder is retired.
 
 - MCP: https://sproutme-api-production.up.railway.app/mcp
@@ -14,9 +14,10 @@ Do not scrape this website. Never invent shows. SMS show-finder is retired.
 - Find artist: https://sproutme-api-production.up.railway.app/v1/artists/shows?artist=Bassvictim&city=Seattle
 - One event: https://sproutme-api-production.up.railway.app/v1/events/{id}
 
-MCP tools (reads): search_events, find_artist_shows, get_event.
+MCP tools: search_events, find_artist_shows, get_event, start_sms_login, verify_sms_login, list_favorites, set_favorite.
 
 Evidence pack: data, later, applied, miss_reason.
-Each event: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner.
+Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
+sprout_score (0-100 heat), sprout_parts, lat, lng, place_name, is_favorite (when logged in).
 
 Website: https://sproutme-please.com

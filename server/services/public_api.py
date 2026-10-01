@@ -7,12 +7,14 @@ from difflib import SequenceMatcher
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from flask import Response, jsonify, request
 
+from services.mcp_auth import favorite_key, favorite_keys, resolve_session
+
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 DEFAULT_PROTOCOL = "2025-03-26"
 MAX_RESULTS = 20
 DEFAULT_LIMIT = 8
 CACHE_TTL_SECONDS = 60
-# Lean fields for LLM consumers — ChatGPT narrates; no SMS card strings.
+# Compact fields for ChatGPT — scores + geo included; no SMS card strings.
 PUBLIC_EVENT_FIELDS = (
     "id",
     "event_name",
@@ -24,6 +26,12 @@ PUBLIC_EVENT_FIELDS = (
     "ticket_info",
     "event_url",
     "headliner",
+    "sprout_score",
+    "sprout_parts",
+    "lat",
+    "lng",
+    "place_name",
+    "is_favorite",
 )
 
 WEEKDAYS = {
@@ -33,18 +41,38 @@ WEEKDAYS = {
 
 CHATGPT_GPT_INSTRUCTIONS = """You are SproutMe, an electronic-music show finder for North America.
 
-Catalog tools return structured evidence JSON. You narrate — never invent.
+Tools return structured evidence JSON. You narrate and reason — never invent shows.
 
-Rules:
-- Only recommend events in tool results (`data`). If `data` is empty, mention `later` when present, otherwise say `miss_reason` honestly.
-- Never invent shows, venues, prices, dates, lineups, or ticket links.
-- Prefer city + genre + date filters over vague free-text.
-- Date may be YYYY-MM-DD or: tonight, tomorrow, saturday, this weekend, next weekend, in 2 days.
-- Artist asks → findArtistShows / find_artist_shows first.
-- Genre/city nights → searchEvents / search_events.
-- Keep answers short: lead with 1–2 best options, then offer to refine.
-- Do not call addEvent / add_event unless the user explicitly wants to submit a show (requires API key).
+Evidence pack:
+- data: primary matches — only recommend from these
+- later: nearby/out-of-window hits if data is empty
+- applied: filters that actually ran
+- miss_reason: honest empty result (say this; do not substitute random shows)
+
+Event fields:
+- sprout_score: 0–100 catalog heat (artist popularity + breakout + venue). Higher ≈ hotter; use when ranking or explaining why.
+- sprout_parts: optional breakdown (artist / hot / venue)
+- lat, lng, place_name: venue geo when known — use for distance/neighborhood talk; if missing, do not invent
+- is_favorite: true when the logged-in user already saved this show
+- headliner, genre, venue, city, ticket_info, event_url: catalog facts
+
+Login / favorites:
+- start_sms_login → user gets an SMS code → verify_sms_login → keep session_token in the thread
+- list_favorites for taste context (genres, venues, artists). Prefer overlapping options when recommending, still only citing catalog hits.
+- set_favorite to star/unstar. Pass session_token on search tools to mark is_favorite.
+
+Date may be YYYY-MM-DD or: tonight, tomorrow, saturday, this weekend, next weekend, in 2 days.
+Keep answers short: lead with 1–2 best options, then offer to refine.
 """
+
+MCP_INSTRUCTIONS = (
+    "SproutMe EDM catalog. Tools return compact evidence JSON — you narrate and reason. "
+    "Never invent shows. Use search_events / find_artist_shows / get_event for catalog. "
+    "Field guide: sprout_score (0-100 heat) for ranking; lat/lng/place_name for location when present; "
+    "is_favorite when session_token is passed. "
+    "Login: start_sms_login → verify_sms_login → session_token for list_favorites / set_favorite. "
+    "If data is empty, use later or miss_reason."
+)
 
 _events_cache = {"at": 0.0, "events": None}
 
@@ -86,18 +114,56 @@ def sanitize_event(event):
     return cleaned
 
 
-def compact_event(event):
+def compact_event(event, *, include_favorite_flag=False):
     if not event:
         return None
     event = sanitize_event(event)
     compact = {field: event.get(field) for field in PUBLIC_EVENT_FIELDS}
     if not compact.get("headliner"):
         compact.pop("headliner", None)
-    # Drop empty optional fields so the LLM isn't flooded with nulls.
+    if compact.get("sprout_score") is None:
+        compact.pop("sprout_score", None)
+    if not compact.get("sprout_parts"):
+        compact.pop("sprout_parts", None)
+    if compact.get("lat") is None:
+        compact.pop("lat", None)
+    if compact.get("lng") is None:
+        compact.pop("lng", None)
+    if not compact.get("place_name"):
+        compact.pop("place_name", None)
+    if include_favorite_flag:
+        compact["is_favorite"] = bool(event.get("is_favorite"))
+    else:
+        compact.pop("is_favorite", None)
     for key in ("ticket_info", "genre", "city", "event_url"):
         if not compact.get(key):
             compact.pop(key, None)
     return compact
+
+
+def mark_favorites(events, favorites):
+    keys = favorite_keys(favorites)
+    if not keys:
+        for event in events or []:
+            if isinstance(event, dict):
+                event["is_favorite"] = False
+        return events
+    for event in events or []:
+        if not isinstance(event, dict):
+            continue
+        event["is_favorite"] = favorite_key(event) in keys
+    return events
+
+
+def compact_evidence(result, *, include_favorite_flag=False):
+    if not result:
+        return result
+    out = dict(result)
+    out["data"] = [compact_event(e, include_favorite_flag=include_favorite_flag) for e in (result.get("data") or [])]
+    out["data"] = [e for e in out["data"] if e]
+    out["later"] = [compact_event(e, include_favorite_flag=include_favorite_flag) for e in (result.get("later") or [])]
+    out["later"] = [e for e in out["later"] if e]
+    return out
 
 
 def _haystack(event):
@@ -220,7 +286,7 @@ def _name_mentions_artist(event_name, query):
     )
 
 
-def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAULT_LIMIT, offset=0):
+def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAULT_LIMIT, offset=0, favorite_set=None):
     q = (q or "").strip().lower()
     city = (city or "").strip().lower()
     genre = (genre or "").strip().lower()
@@ -228,6 +294,7 @@ def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAUL
     date_l = date_raw.lower().replace("-", "/")
     start, end = parse_date_window(date_raw)
     today = _today()
+    include_fav = favorite_set is not None
     try:
         limit = min(max(int(limit), 1), MAX_RESULTS)
     except (TypeError, ValueError):
@@ -236,6 +303,12 @@ def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAUL
         offset = max(int(offset), 0)
     except (TypeError, ValueError):
         offset = 0
+
+    def _pack(event):
+        item = dict(event)
+        if include_fav:
+            item["is_favorite"] = favorite_key(item) in favorite_set
+        return compact_event(item, include_favorite_flag=include_fav)
 
     matched = []
     later = []
@@ -252,16 +325,16 @@ def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAUL
             continue
         if start and end:
             if day and start <= day <= end:
-                matched.append(compact_event(event))
+                matched.append(_pack(event))
             elif day and day > end:
-                later.append(compact_event(event))
+                later.append(_pack(event))
             continue
         if date_l:
             raw = (event.get("raw_date") or "").lower().replace("-", "/")
             display = (event.get("date") or "").lower()
             if date_l not in raw and date_l not in display:
                 continue
-        matched.append(compact_event(event))
+        matched.append(_pack(event))
 
     applied = {
         "q": q or None,
@@ -294,7 +367,7 @@ def filter_events(events, q=None, city=None, genre=None, date=None, limit=DEFAUL
     }
 
 
-def find_artist_shows(events, artist, city=None, date=None, limit=5):
+def find_artist_shows(events, artist, city=None, date=None, limit=5, favorite_set=None):
     artist = re.sub(r"\s+", " ", (artist or "").strip())
     if len(artist) < 2:
         return {
@@ -309,10 +382,17 @@ def find_artist_shows(events, artist, city=None, date=None, limit=5):
     city_l = (city or "").strip().lower()
     start, end = parse_date_window(date)
     today = _today()
+    include_fav = favorite_set is not None
     try:
         limit = min(max(int(limit), 1), MAX_RESULTS)
     except (TypeError, ValueError):
         limit = 5
+
+    def _pack(event):
+        item = dict(event)
+        if include_fav:
+            item["is_favorite"] = favorite_key(item) in favorite_set
+        return compact_event(item, include_favorite_flag=include_fav)
 
     hits = []
     for event in events or []:
@@ -339,11 +419,11 @@ def find_artist_shows(events, artist, city=None, date=None, limit=5):
         day = event_day(event)
         if start and end:
             if day and start <= day <= end:
-                in_window.append(compact_event(event))
+                in_window.append(_pack(event))
             elif day:
-                later.append(compact_event(event))
+                later.append(_pack(event))
         else:
-            in_window.append(compact_event(event))
+            in_window.append(_pack(event))
 
     data = in_window[:limit]
     later_out = later[:limit] if not data else later[:1]
@@ -515,11 +595,12 @@ Do not scrape the website. Never invent shows.
 - Get one event: GET {public_base_url}/v1/events/{{id}}
 - Add event (Bearer AGENT_API_KEY): POST {public_base_url}/v1/events
 
-MCP tools (reads): search_events, find_artist_shows, get_event.
+MCP tools: search_events, find_artist_shows, get_event, start_sms_login, verify_sms_login, list_favorites, set_favorite.
 add_event is write-gated and omitted from the default plugin tool list.
 
-Evidence pack fields: data, later, applied, miss_reason.
-Each event: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner.
+Evidence pack: data, later, applied, miss_reason.
+Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
+sprout_score, sprout_parts, lat, lng, place_name, is_favorite (when logged in).
 
 Website: https://sproutme-please.com (browse only; SMS show-finder is retired).
 """
@@ -529,10 +610,9 @@ MCP_TOOLS = [
     {
         "name": "search_events",
         "description": (
-            "Search upcoming EDM / electronic music events in North America. "
-            "Pass city, genre, and/or date (YYYY-MM-DD or saturday/this weekend/tonight). "
-            "Returns compact evidence: data[], later[], applied, miss_reason. "
-            "Narrate from data only; if empty use later or miss_reason — never invent."
+            "Search upcoming EDM events by city, genre, date, or free-text. "
+            "Returns evidence pack with sprout_score and venue location when known. "
+            "Optional session_token marks is_favorite."
         ),
         "inputSchema": {
             "type": "object",
@@ -542,14 +622,15 @@ MCP_TOOLS = [
                 "genre": {"type": "string", "description": "e.g. house, techno, drum and bass"},
                 "date": {"type": "string", "description": "YYYY-MM-DD or tonight/saturday/this weekend"},
                 "limit": {"type": "integer", "default": DEFAULT_LIMIT, "maximum": MAX_RESULTS},
+                "session_token": {"type": "string", "description": "From verify_sms_login; marks is_favorite"},
             },
         },
     },
     {
         "name": "find_artist_shows",
         "description": (
-            "Find catalog shows for a named artist (name match on event_name/headliner). "
-            "Returns evidence pack — narrate from data; empty + miss_reason means not cataloged."
+            "Find catalog shows for a named artist. "
+            "Optional session_token marks is_favorite."
         ),
         "inputSchema": {
             "type": "object",
@@ -559,17 +640,66 @@ MCP_TOOLS = [
                 "city": {"type": "string"},
                 "date": {"type": "string"},
                 "limit": {"type": "integer", "default": 5, "maximum": MAX_RESULTS},
+                "session_token": {"type": "string"},
             },
         },
     },
     {
         "name": "get_event",
-        "description": "Get one SproutMe event by numeric id from search_events / find_artist_shows.",
+        "description": "Get one SproutMe event by numeric id.",
         "inputSchema": {
             "type": "object",
             "required": ["event_id"],
             "properties": {
                 "event_id": {"type": "integer"},
+                "session_token": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "start_sms_login",
+        "description": "Send a one-time SMS login code to a phone number (E.164 or US local).",
+        "inputSchema": {
+            "type": "object",
+            "required": ["phone"],
+            "properties": {
+                "phone": {"type": "string", "description": "Phone number, e.g. +12065551212"},
+            },
+        },
+    },
+    {
+        "name": "verify_sms_login",
+        "description": "Verify the SMS code and return a session_token for favorites.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["phone", "code"],
+            "properties": {
+                "phone": {"type": "string"},
+                "code": {"type": "string", "description": "6-digit Twilio Verify code"},
+            },
+        },
+    },
+    {
+        "name": "list_favorites",
+        "description": "List the logged-in user's favorite shows (taste context for recommendations).",
+        "inputSchema": {
+            "type": "object",
+            "required": ["session_token"],
+            "properties": {
+                "session_token": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "set_favorite",
+        "description": "Star or unstar an event by id for the logged-in user.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["session_token", "event_id", "starred"],
+            "properties": {
+                "session_token": {"type": "string"},
+                "event_id": {"type": "integer"},
+                "starred": {"type": "boolean"},
             },
         },
     },
@@ -579,10 +709,7 @@ MCP_TOOLS = [
 MCP_WRITE_TOOLS = [
     {
         "name": "add_event",
-        "description": (
-            "Submit a new event to the SproutMe catalog (requires Bearer AGENT_API_KEY). "
-            "Only when the user explicitly wants to publish a show."
-        ),
+        "description": "Submit a new catalog event (requires Bearer AGENT_API_KEY).",
         "inputSchema": {
             "type": "object",
             "required": ["event_name", "venue", "date"],
@@ -635,11 +762,23 @@ def _mcp_response(payload, session_id, status=200):
     return Response(json.dumps(payload), status=status, headers=headers)
 
 
-def register_public_api(app, list_events, get_event, add_event, public_base_url, api_key=""):
+def register_public_api(
+    app,
+    list_events,
+    get_event,
+    add_event,
+    public_base_url,
+    api_key="",
+    start_sms_login=None,
+    verify_sms_login=None,
+    list_favorites=None,
+    set_favorite=None,
+):
     """
     list_events() -> list[dict]
     get_event(event_id) -> dict | None
     add_event(payload_dict) -> (result_dict, status_code)
+    Auth callbacks optional — required for MCP login/favorites tools.
     """
 
     def cached_events():
@@ -661,6 +800,28 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
         header = request.headers.get("Authorization") or ""
         token = header[7:].strip() if header.lower().startswith("bearer ") else header
         return token == api_key
+
+    def favorite_set_for_token(session_token):
+        if not session_token or not list_favorites:
+            return None
+        phone = resolve_session(session_token)
+        if not phone:
+            return None
+        result = list_favorites(phone) or {}
+        return favorite_keys(result.get("data") or [])
+
+    helpers = {
+        "cached_events": cached_events,
+        "get_event": get_event,
+        "add_event": add_event,
+        "authorized_for_write": authorized_for_write,
+        "invalidate_cache": invalidate_cache,
+        "favorite_set_for_token": favorite_set_for_token,
+        "start_sms_login": start_sms_login,
+        "verify_sms_login": verify_sms_login,
+        "list_favorites": list_favorites,
+        "set_favorite": set_favorite,
+    }
 
     @app.route("/openapi.json", methods=["GET"])
     def openapi_spec():
@@ -686,6 +847,7 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
     def v1_search_events():
         if request.method == "OPTIONS":
             return _cors_preflight()
+        fav_set = favorite_set_for_token(request.args.get("session_token"))
         result = filter_events(
             cached_events(),
             q=request.args.get("q"),
@@ -694,6 +856,7 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
             date=request.args.get("date"),
             limit=request.args.get("limit", DEFAULT_LIMIT),
             offset=request.args.get("offset", 0),
+            favorite_set=fav_set,
         )
         response = jsonify({
             "success": True,
@@ -707,12 +870,14 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
     def v1_find_artist_shows():
         if request.method == "OPTIONS":
             return _cors_preflight()
+        fav_set = favorite_set_for_token(request.args.get("session_token"))
         result = find_artist_shows(
             cached_events(),
             artist=request.args.get("artist") or request.args.get("q") or "",
             city=request.args.get("city"),
             date=request.args.get("date"),
             limit=request.args.get("limit", 5),
+            favorite_set=fav_set,
         )
         response = jsonify({
             "success": bool(result.get("data") or result.get("later")),
@@ -730,7 +895,12 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
     def v1_get_event(event_id):
         if request.method == "OPTIONS":
             return _cors_preflight()
-        event = compact_event(get_event(event_id))
+        raw = get_event(event_id)
+        fav_set = favorite_set_for_token(request.args.get("session_token"))
+        if raw and fav_set is not None:
+            raw = dict(raw)
+            raw["is_favorite"] = favorite_key(raw) in fav_set
+        event = compact_event(raw, include_favorite_flag=fav_set is not None)
         if not event:
             response = jsonify({"success": False, "message": f"No event found with id {event_id}", "data": None})
             response.headers["Access-Control-Allow-Origin"] = "*"
@@ -780,11 +950,11 @@ def register_public_api(app, list_events, get_event, add_event, public_base_url,
             return _mcp_response(_jsonrpc_error(None, -32700, "Parse error"), session_id)
 
         if isinstance(message, list):
-            payloads = [handle_mcp_message(item, cached_events, get_event, add_event, authorized_for_write, invalidate_cache, session_id) for item in message]
+            payloads = [handle_mcp_message(item, helpers) for item in message]
             payloads = [item for item in payloads if item is not None]
             return _mcp_response(payloads if payloads else None, session_id)
 
-        payload = handle_mcp_message(message, cached_events, get_event, add_event, authorized_for_write, invalidate_cache, session_id)
+        payload = handle_mcp_message(message, helpers)
         if payload is None:
             return _mcp_response(None, session_id)
         return _mcp_response(payload, session_id)
@@ -803,13 +973,14 @@ def _cors_preflight():
     )
 
 
-def handle_mcp_message(message, cached_events, get_event, add_event, authorized_for_write, invalidate_cache, session_id):
+def handle_mcp_message(message, helpers):
     if not isinstance(message, dict):
         return _jsonrpc_error(None, -32600, "Invalid Request")
 
     method = message.get("method")
     msg_id = message.get("id")
     params = message.get("params") or {}
+    authorized_for_write = helpers["authorized_for_write"]
 
     if method == "notifications/initialized" or (method and method.startswith("notifications/") and msg_id is None):
         return None
@@ -820,12 +991,8 @@ def handle_mcp_message(message, cached_events, get_event, add_event, authorized_
         return _jsonrpc_result(msg_id, {
             "protocolVersion": protocol,
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "sproutme", "version": "1.0.0"},
-            "instructions": (
-                "SproutMe EDM catalog. Tools return compact evidence JSON — you narrate. "
-                "Never invent shows. search_events for city/genre/date; find_artist_shows for artists. "
-                "If data is empty, use later or miss_reason."
-            ),
+            "serverInfo": {"name": "sproutme", "version": "1.1.0"},
+            "instructions": MCP_INSTRUCTIONS,
         })
 
     if method == "ping":
@@ -841,7 +1008,7 @@ def handle_mcp_message(message, cached_events, get_event, add_event, authorized_
         name = params.get("name")
         arguments = params.get("arguments") or {}
         try:
-            text, is_error = call_tool(name, arguments, cached_events, get_event, add_event, authorized_for_write, invalidate_cache)
+            text, is_error = call_tool(name, arguments, helpers)
         except Exception as exc:
             text, is_error = f"Tool error: {exc}", True
         return _jsonrpc_result(msg_id, {
@@ -854,8 +1021,20 @@ def handle_mcp_message(message, cached_events, get_event, add_event, authorized_
     return _jsonrpc_error(msg_id, -32601, f"Method not found: {method}")
 
 
-def call_tool(name, arguments, cached_events, get_event, add_event, authorized_for_write, invalidate_cache):
+def call_tool(name, arguments, helpers):
+    cached_events = helpers["cached_events"]
+    get_event = helpers["get_event"]
+    add_event = helpers["add_event"]
+    authorized_for_write = helpers["authorized_for_write"]
+    invalidate_cache = helpers["invalidate_cache"]
+    favorite_set_for_token = helpers["favorite_set_for_token"]
+    start_sms_login = helpers.get("start_sms_login")
+    verify_sms_login = helpers.get("verify_sms_login")
+    list_favorites = helpers.get("list_favorites")
+    set_favorite = helpers.get("set_favorite")
+
     if name == "search_events":
+        fav_set = favorite_set_for_token(arguments.get("session_token"))
         result = filter_events(
             cached_events(),
             q=arguments.get("q"),
@@ -863,16 +1042,19 @@ def call_tool(name, arguments, cached_events, get_event, add_event, authorized_f
             genre=arguments.get("genre"),
             date=arguments.get("date"),
             limit=arguments.get("limit", DEFAULT_LIMIT),
+            favorite_set=fav_set,
         )
         return json.dumps(result, indent=2), False
 
     if name == "find_artist_shows":
+        fav_set = favorite_set_for_token(arguments.get("session_token"))
         result = find_artist_shows(
             cached_events(),
             artist=arguments.get("artist") or arguments.get("q") or "",
             city=arguments.get("city"),
             date=arguments.get("date"),
             limit=arguments.get("limit", 5),
+            favorite_set=fav_set,
         )
         return json.dumps(result, indent=2), False
 
@@ -882,10 +1064,57 @@ def call_tool(name, arguments, cached_events, get_event, add_event, authorized_f
             event_id = int(event_id)
         except (TypeError, ValueError):
             return "event_id must be an integer", True
-        event = compact_event(get_event(event_id))
+        raw = get_event(event_id)
+        fav_set = favorite_set_for_token(arguments.get("session_token"))
+        if raw and fav_set is not None:
+            raw = dict(raw)
+            raw["is_favorite"] = favorite_key(raw) in fav_set
+        event = compact_event(raw, include_favorite_flag=fav_set is not None)
         if not event:
             return f"No event found with id {event_id}", True
         return json.dumps(event, indent=2), False
+
+    if name == "start_sms_login":
+        if not start_sms_login:
+            return "SMS login is not configured", True
+        result = start_sms_login(arguments.get("phone") or "")
+        ok = bool(result.get("success"))
+        return json.dumps(result, indent=2), not ok
+
+    if name == "verify_sms_login":
+        if not verify_sms_login:
+            return "SMS login is not configured", True
+        result = verify_sms_login(arguments.get("phone") or "", arguments.get("code") or "")
+        ok = bool(result.get("success"))
+        return json.dumps(result, indent=2), not ok
+
+    if name == "list_favorites":
+        if not list_favorites:
+            return "Favorites are not configured", True
+        phone = resolve_session(arguments.get("session_token") or "")
+        if not phone:
+            return "Invalid or expired session_token. Call verify_sms_login first.", True
+        result = list_favorites(phone) or {}
+        data = [compact_event(e) for e in (result.get("data") or [])]
+        data = [e for e in data if e]
+        return json.dumps({"success": bool(result.get("success", True)), "data": data, "count": len(data)}, indent=2), False
+
+    if name == "set_favorite":
+        if not set_favorite:
+            return "Favorites are not configured", True
+        phone = resolve_session(arguments.get("session_token") or "")
+        if not phone:
+            return "Invalid or expired session_token. Call verify_sms_login first.", True
+        try:
+            event_id = int(arguments.get("event_id"))
+        except (TypeError, ValueError):
+            return "event_id must be an integer", True
+        starred = arguments.get("starred")
+        if isinstance(starred, str):
+            starred = starred.strip().lower() in {"1", "true", "yes", "on"}
+        result = set_favorite(phone, event_id, bool(starred))
+        ok = bool(result.get("success"))
+        return json.dumps(result, indent=2), not ok
 
     if name == "add_event":
         if not authorized_for_write():

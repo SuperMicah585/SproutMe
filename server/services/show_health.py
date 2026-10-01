@@ -102,6 +102,24 @@ def annotate_events(events, list_heat=None, list_venues=None):
         artists = headliners_for_event(event, limit=3)
         place = _match_place_exact(venues, event.get("venue") or "", event.get("city") or "")
         venue_raw = venue_score(place) if place and place.get("place_id") else None
+        if place and place.get("place_id"):
+            if place.get("lat") is not None:
+                event["lat"] = place.get("lat")
+            else:
+                event.pop("lat", None)
+            if place.get("lng") is not None:
+                event["lng"] = place.get("lng")
+            else:
+                event.pop("lng", None)
+            place_name = (place.get("display_name") or "").strip()
+            if place_name:
+                event["place_name"] = place_name
+            else:
+                event.pop("place_name", None)
+        else:
+            event.pop("lat", None)
+            event.pop("lng", None)
+            event.pop("place_name", None)
         # Unmatched artists count as popularity 0 (not "missing"), so venue
         # alone cannot rescale into a high SproutMe score.
         # Multi-act bills: keep the best artist/heat contribution.

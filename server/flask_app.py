@@ -22,6 +22,7 @@ from services.show_health import annotate_events
 from services.sms_agent import SmsAgent
 from services.spotify_service import SpotifyCatalog
 from services.verify_number import TwilioVerificationManager
+from services.mcp_auth import issue_session
 from flask_cors import CORS,cross_origin
 from twilio.request_validator import RequestValidator
 from twilio.twiml.messaging_response import MessagingResponse
@@ -267,6 +268,12 @@ def public_list_events(columns="*"):
         user_result.get('data') or [],
     )
 
+def public_list_events_annotated(columns=None):
+    cols = columns or (
+        "id,event_name,headliner,date,raw_date,venue,city,genre,ticket_info,organizer,event_url"
+    )
+    return attach_show_health(public_list_events(columns=cols))
+
 def public_get_event(event_id):
     try:
         user_response = pa_db('user_submitted_events').client.table('user_submitted_events').select('*').eq('id', event_id).execute()
@@ -281,6 +288,12 @@ def public_get_event(event_id):
     if result.get('success') and result.get('data'):
         return result['data']
     return None
+
+def public_get_event_annotated(event_id):
+    event = public_get_event(event_id)
+    if not event:
+        return None
+    return attach_show_health([event])[0]
 
 def build_sms_agent():
     return SmsAgent(
@@ -1420,13 +1433,79 @@ def get_favorite_events_by_phone():
             "data": None
         }), 500
 
+def mcp_start_sms_login(phone):
+    verify_manager = TwilioVerificationManager()
+    check = verify_manager.is_valid_phone_number(phone or "", region="US")
+    if not check.get("valid"):
+        return {"success": False, "message": "Invalid phone number. Use E.164 like +12065551212."}
+    formatted = check.get("formatted_number") or phone
+    if not verify_manager.send_verification(formatted):
+        return {"success": False, "message": "Could not send verification SMS. Try again shortly."}
+    return {
+        "success": True,
+        "phone": formatted,
+        "message": "SMS code sent. Ask the user for the code, then call verify_sms_login.",
+    }
+
+
+def mcp_verify_sms_login(phone, code):
+    verify_manager = TwilioVerificationManager()
+    check = verify_manager.is_valid_phone_number(phone or "", region="US")
+    if not check.get("valid"):
+        return {"success": False, "message": "Invalid phone number."}
+    formatted = check.get("formatted_number") or phone
+    if not (code or "").strip():
+        return {"success": False, "message": "Verification code is required."}
+    if not verify_manager.verify_code(formatted, str(code).strip()):
+        return {"success": False, "message": "Invalid or expired code."}
+    pa_db("user_table").create_user(formatted, send_welcome=False)
+    session = issue_session(formatted)
+    return {
+        "success": True,
+        "session_token": session["session_token"],
+        "expires_in": session["expires_in"],
+        "expires_at": session["expires_at"],
+        "phone": formatted,
+        "message": "Logged in. Keep session_token for list_favorites / set_favorite / search with is_favorite.",
+    }
+
+
+def mcp_list_favorites(phone):
+    return pa_db("favorite_events").get_favorite_events(phone)
+
+
+def mcp_set_favorite(phone, event_id, starred):
+    event = public_get_event_annotated(event_id)
+    if not event:
+        return {"success": False, "message": f"No event found with id {event_id}"}
+    db = pa_db("favorite_events")
+    if starred:
+        result = db.star_event(phone, event)
+    else:
+        result = db.unstar_event(phone, event)
+    if result.get("success"):
+        result["event_id"] = event_id
+        result["starred"] = bool(starred)
+        result["event"] = {
+            "id": event.get("id"),
+            "event_name": event.get("event_name"),
+            "venue": event.get("venue"),
+            "date": event.get("date"),
+        }
+    return result
+
+
 register_public_api(
     app,
-    list_events=public_list_events,
-    get_event=public_get_event,
+    list_events=public_list_events_annotated,
+    get_event=public_get_event_annotated,
     add_event=create_user_submitted_event,
     public_base_url=os.environ.get("PUBLIC_API_URL", "").rstrip("/") or "http://localhost:5050",
     api_key=os.environ.get("AGENT_API_KEY", ""),
+    start_sms_login=mcp_start_sms_login,
+    verify_sms_login=mcp_verify_sms_login,
+    list_favorites=mcp_list_favorites,
+    set_favorite=mcp_set_favorite,
 )
 
 register_sitemaps(
