@@ -26,8 +26,9 @@ PUBLIC_EVENT_FIELDS = (
     "ticket_info",
     "event_url",
     "headliner",
-    "sprout_score",
-    "sprout_parts",
+    "score_artist",
+    "score_hot",
+    "score_venue",
     "lat",
     "lng",
     "place_name",
@@ -50,8 +51,10 @@ Evidence pack:
 - miss_reason: honest empty result (say this; do not substitute random shows)
 
 Event fields:
-- sprout_score: 0–100 catalog heat (artist popularity + breakout + venue). Higher ≈ hotter; use when ranking or explaining why.
-- sprout_parts: optional breakdown (artist / hot / venue)
+- score_artist: 0–100 headliner popularity (absent if unknown)
+- score_hot: 0–100 breakout / rising heat (absent if unknown)
+- score_venue: 0–100 venue quality signal (absent if unknown)
+  Rank by weighting these yourself for the user’s ask (e.g. prefer hot for “what’s buzzing”, venue for “nice room”, artist for big names). Do not assume a single blended score.
 - lat, lng, place_name: venue geo when known — use for distance/neighborhood talk; if missing, do not invent
 - is_favorite: true when the logged-in user already saved this show
 - headliner, genre, venue, city, ticket_info, event_url: catalog facts
@@ -68,8 +71,8 @@ Keep answers short: lead with 1–2 best options, then offer to refine.
 MCP_INSTRUCTIONS = (
     "SproutMe EDM catalog. Tools return compact evidence JSON — you narrate and reason. "
     "Never invent shows. Use search_events / find_artist_shows / get_event for catalog. "
-    "Field guide: sprout_score (0-100 heat) for ranking; lat/lng/place_name for location when present; "
-    "is_favorite when session_token is passed. "
+    "Scores are separate: score_artist, score_hot, score_venue (each 0-100 when present) — weight them for the user’s intent; "
+    "no blended score. lat/lng/place_name for location when present; is_favorite when session_token is passed. "
     "Login: start_sms_login → verify_sms_login → session_token for list_favorites / set_favorite. "
     "If data is empty, use later or miss_reason."
 )
@@ -121,10 +124,9 @@ def compact_event(event, *, include_favorite_flag=False):
     compact = {field: event.get(field) for field in PUBLIC_EVENT_FIELDS}
     if not compact.get("headliner"):
         compact.pop("headliner", None)
-    if compact.get("sprout_score") is None:
-        compact.pop("sprout_score", None)
-    if not compact.get("sprout_parts"):
-        compact.pop("sprout_parts", None)
+    for score_key in ("score_artist", "score_hot", "score_venue"):
+        if compact.get(score_key) is None:
+            compact.pop(score_key, None)
     if compact.get("lat") is None:
         compact.pop("lat", None)
     if compact.get("lng") is None:
@@ -600,7 +602,8 @@ add_event is write-gated and omitted from the default plugin tool list.
 
 Evidence pack: data, later, applied, miss_reason.
 Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
-sprout_score, sprout_parts, lat, lng, place_name, is_favorite (when logged in).
+score_artist, score_hot, score_venue (each 0-100 when known — weight yourself), lat, lng, place_name,
+is_favorite (when logged in).
 
 Website: https://sproutme-please.com (browse only; SMS show-finder is retired).
 """
@@ -611,7 +614,7 @@ MCP_TOOLS = [
         "name": "search_events",
         "description": (
             "Search upcoming EDM events by city, genre, date, or free-text. "
-            "Returns evidence pack with sprout_score and venue location when known. "
+            "Returns evidence pack with separate score_artist/score_hot/score_venue and venue location when known. "
             "Optional session_token marks is_favorite."
         ),
         "inputSchema": {

@@ -138,6 +138,20 @@ def annotate_events(events, list_heat=None, list_venues=None):
                 best_score = score
                 best_parts = parts
         event["sprout_parts"] = best_parts
+        # Separate 0–100 component scores so agents can weight them; blended
+        # sprout_score remains for the website UI only.
+        if "artist" in best_parts:
+            event["score_artist"] = int(round(best_parts["artist"] * 100))
+        else:
+            event.pop("score_artist", None)
+        if "hot" in best_parts:
+            event["score_hot"] = int(round(best_parts["hot"] * 100))
+        else:
+            event.pop("score_hot", None)
+        if "venue" in best_parts:
+            event["score_venue"] = int(round(best_parts["venue"] * 100))
+        else:
+            event.pop("score_venue", None)
         if best_parts:
             event["sprout_score"] = display_score(best_score)
         else:
