@@ -7,7 +7,8 @@ import hmac
 import os
 import time
 
-SESSION_TTL_SECONDS = 7 * 24 * 3600
+# 0 = never expires (reuse for the whole ChatGPT thread).
+SESSION_TTL_SECONDS = 0
 
 
 def _secret_bytes():
@@ -22,12 +23,22 @@ def issue_session(phone: str, ttl_seconds: int = SESSION_TTL_SECONDS) -> dict:
     phone = (phone or "").strip()
     if not phone:
         raise ValueError("phone required")
-    exp = int(time.time()) + int(ttl_seconds)
+    # exp=0 means never expire. Non-zero is unix expiry (legacy).
+    try:
+        ttl = int(ttl_seconds or 0)
+    except (TypeError, ValueError):
+        ttl = 0
+    exp = 0 if ttl <= 0 else int(time.time()) + ttl
     payload = f"{phone}|{exp}"
     sig = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
     raw = f"{payload}|{sig}"
     token = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
-    return {"session_token": token, "expires_at": exp, "expires_in": int(ttl_seconds), "phone": phone}
+    return {
+        "session_token": token,
+        "expires_at": None if exp == 0 else exp,
+        "expires_in": None if exp == 0 else ttl,
+        "phone": phone,
+    }
 
 
 def resolve_session(token: str):
@@ -39,7 +50,7 @@ def resolve_session(token: str):
         raw = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
         phone, exp_s, sig = raw.rsplit("|", 2)
         exp = int(exp_s)
-        if exp < int(time.time()):
+        if exp != 0 and exp < int(time.time()):
             return None
         payload = f"{phone}|{exp}"
         expected = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).hexdigest()[:32]

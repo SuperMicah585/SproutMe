@@ -1463,10 +1463,14 @@ def mcp_verify_sms_login(phone, code):
     return {
         "success": True,
         "session_token": session["session_token"],
-        "expires_in": session["expires_in"],
-        "expires_at": session["expires_at"],
+        "expires_in": session.get("expires_in"),
+        "expires_at": session.get("expires_at"),
         "phone": formatted,
-        "message": "Logged in. Keep session_token for list_favorites / set_favorite / search with is_favorite.",
+        "message": (
+            "Logged in. session_token does not expire — reuse it for this whole chat "
+            "(list_favorites, set_favorite, search with is_favorite). "
+            "A new chat needs login again if they want favorites/taste."
+        ),
     }
 
 

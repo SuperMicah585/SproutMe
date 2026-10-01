@@ -64,7 +64,8 @@ Other fields:
 - headliner, genre, venue, city, ticket_info, event_url: catalog facts
 
 Login / favorites:
-- start_sms_login → user gets an SMS code → verify_sms_login → keep session_token in the thread
+- session_token does not expire — keep reusing it for the whole chat after verify_sms_login.
+- New chat = no session. If the user wants to save shows or use taste for recs, offer SMS login (ask for phone → start_sms_login → code → verify_sms_login). Don’t force login for browse-only asks.
 - list_favorites for taste context (genres, venues, artists). Prefer overlapping options when recommending, still only citing catalog hits.
 - set_favorite to star/unstar. Pass session_token on search tools to mark is_favorite.
 
@@ -80,7 +81,9 @@ MCP_INSTRUCTIONS = (
     "score_venue = Places review-volume / music-venue signal (not how sold-out tonight is). "
     "Weight them for the user’s intent; explain scores using score_context. "
     "lat/lng/place_name for location when present; is_favorite when session_token is passed. "
-    "Login: start_sms_login → verify_sms_login → session_token for list_favorites / set_favorite. "
+    "Login: session_token never expires in-thread — reuse it after verify_sms_login. "
+    "On a new chat there is no session; if they want to save shows or use favorites as taste, offer SMS login "
+    "(ask phone → start_sms_login → code → verify_sms_login). Don’t force login for browse-only. "
     "If data is empty, use later or miss_reason."
 )
 
@@ -699,7 +702,7 @@ MCP_TOOLS = [
     },
     {
         "name": "verify_sms_login",
-        "description": "Verify the SMS code and return a session_token for favorites.",
+        "description": "Verify the SMS code and return a non-expiring session_token for this chat (favorites / taste).",
         "inputSchema": {
             "type": "object",
             "required": ["phone", "code"],
@@ -1123,7 +1126,7 @@ def call_tool(name, arguments, helpers):
             return "Favorites are not configured", True
         phone = resolve_session(arguments.get("session_token") or "")
         if not phone:
-            return "Invalid or expired session_token. Call verify_sms_login first.", True
+            return "Invalid session_token. Call verify_sms_login first.", True
         result = list_favorites(phone) or {}
         data = [compact_event(e) for e in (result.get("data") or [])]
         data = [e for e in data if e]
@@ -1134,7 +1137,7 @@ def call_tool(name, arguments, helpers):
             return "Favorites are not configured", True
         phone = resolve_session(arguments.get("session_token") or "")
         if not phone:
-            return "Invalid or expired session_token. Call verify_sms_login first.", True
+            return "Invalid session_token. Call verify_sms_login first.", True
         try:
             event_id = int(arguments.get("event_id"))
         except (TypeError, ValueError):
