@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
 
-export const CHATGPT_HREF = 'https://chatgpt.com/';
+export const CHATGPT_HREF =
+  import.meta.env.VITE_CHATGPT_PLUGIN_URL || 'https://chatgpt.com/';
 const COLLAPSE_KEY = 'sproutme_chatgpt_widget_collapsed';
 
 const ChatGptWidget = () => {
