@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { trackEvent } from '../../utils/analytics';
 import { CHATGPT_HREF } from './ChatGptWidget';
@@ -35,6 +36,24 @@ const ContactFooter = () => {
           >
             micahphlps@gmail.com
           </a>
+          <span className={`mx-2 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>·</span>
+          <Link
+            to="/privacy"
+            className={`${
+              darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+            } transition-colors duration-300`}
+          >
+            Privacy
+          </Link>
+          <span className={`mx-1.5 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>·</span>
+          <Link
+            to="/terms"
+            className={`${
+              darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+            } transition-colors duration-300`}
+          >
+            Terms
+          </Link>
         </p>
       </div>
     </div>

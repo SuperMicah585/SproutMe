@@ -38,6 +38,16 @@ const ROUTES = {
     description: 'Saved EDM shows on SproutMe.',
     robots: 'noindex,nofollow',
   },
+  '/privacy': {
+    title: 'Privacy Policy | SproutMe',
+    description: 'How SproutMe collects, uses, and shares information when you use the site and ChatGPT plugin.',
+    robots: 'index,follow',
+  },
+  '/terms': {
+    title: 'Terms of Service | SproutMe',
+    description: 'Terms governing use of SproutMe, including the website and ChatGPT plugin.',
+    robots: 'index,follow',
+  },
 };
 
 const upsertMeta = (selector, attributes) => {
