@@ -789,10 +789,11 @@ MCP_WRITE_TOOLS = [
 
 def _wants_sse():
     accept = (request.headers.get("Accept") or "").lower()
-    # OpenAI's scanner advertises both JSON and SSE and expects SSE responses.
-    if "text/event-stream" in accept:
-        return True
-    return False
+    # Prefer JSON when both are advertised — OpenAI dash scanners parse JSON
+    # reliably; SSE is used when the client ONLY accepts event-stream.
+    if "application/json" in accept:
+        return False
+    return "text/event-stream" in accept
 
 
 def _jsonrpc_result(msg_id, result):
@@ -803,23 +804,21 @@ def _jsonrpc_error(msg_id, code, message):
     return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": code, "message": message}}
 
 
-def _mcp_response(payload, session_id, status=200):
+def _mcp_response(payload, session_id=None, status=200):
+    # Stateless Streamable HTTP: session IDs are optional. OpenAI prefers
+    # stateless servers and may not echo Mcp-Session-Id on later calls.
     headers = {
-        "Mcp-Session-Id": session_id,
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
         "Cache-Control": "no-cache",
     }
+    if session_id:
+        headers["Mcp-Session-Id"] = session_id
     if payload is None:
-        # Notifications: accepted with empty body.
-        if _wants_sse():
-            headers["Content-Type"] = "text/event-stream"
-            return Response(b"", status=202, headers=headers)
         headers["Content-Type"] = "application/json"
         return Response(b"", status=202, headers=headers)
     if _wants_sse():
-        # One-shot SSE message, then end the stream (no hanging connection).
         body = f"event: message\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
         headers["Content-Type"] = "text/event-stream"
         return Response(body, status=status, headers=headers)
@@ -996,23 +995,28 @@ def register_public_api(
         return response, status
 
     @app.route("/mcp", methods=["GET", "POST", "DELETE", "OPTIONS"])
+    @app.route("/mcp/", methods=["GET", "POST", "DELETE", "OPTIONS"])
     def mcp_endpoint():
         if request.method == "OPTIONS":
             return _cors_preflight()
-        session_id = request.headers.get("Mcp-Session-Id") or str(uuid.uuid4())
+
+        # Stateless: ignore inbound session; do not mint one for responses.
         if request.method == "DELETE":
             return Response(status=204, headers={"Access-Control-Allow-Origin": "*"})
+
         if request.method == "GET":
-            # Optional standalone SSE stream: open briefly then close so scanners
-            # that probe GET don't hang. Spec allows this; we don't push events.
-            if "text/event-stream" in (request.headers.get("Accept") or "").lower():
+            accept = (request.headers.get("Accept") or "").lower()
+            # Back-compat for clients that probe legacy HTTP+SSE first:
+            # emit an endpoint event pointing at this same Streamable HTTP URL.
+            if "text/event-stream" in accept or "*/*" in accept or not accept:
+                endpoint = f"{public_base_url.rstrip('/')}/mcp"
+                body = f"event: endpoint\ndata: {endpoint}\n\n"
                 return Response(
-                    b"",
+                    body,
                     status=200,
                     headers={
                         "Content-Type": "text/event-stream",
                         "Cache-Control": "no-cache",
-                        "Mcp-Session-Id": session_id,
                         "Access-Control-Allow-Origin": "*",
                     },
                 )
@@ -1021,23 +1025,52 @@ def register_public_api(
                 headers={
                     "Allow": "POST, DELETE, OPTIONS",
                     "Access-Control-Allow-Origin": "*",
-                    "Mcp-Session-Id": session_id,
                 },
             )
 
+        # Log scan/debug traffic without dumping bodies.
+        try:
+            logger = __import__("logging").getLogger("sproutme.mcp")
+            logger.info(
+                "MCP %s accept=%r ua=%r content_type=%r",
+                request.method,
+                request.headers.get("Accept"),
+                request.headers.get("User-Agent"),
+                request.headers.get("Content-Type"),
+            )
+        except Exception:
+            pass
+
         message = request.get_json(silent=True)
         if message is None:
-            return _mcp_response(_jsonrpc_error(None, -32700, "Parse error"), session_id)
+            return _mcp_response(_jsonrpc_error(None, -32700, "Parse error"))
 
         if isinstance(message, list):
             payloads = [handle_mcp_message(item, helpers) for item in message]
             payloads = [item for item in payloads if item is not None]
-            return _mcp_response(payloads if payloads else None, session_id)
+            return _mcp_response(payloads if payloads else None)
 
         payload = handle_mcp_message(message, helpers)
         if payload is None:
-            return _mcp_response(None, session_id)
-        return _mcp_response(payload, session_id)
+            return _mcp_response(None)
+        return _mcp_response(payload)
+
+    # Legacy SSE transport entrypoint some probes still hit.
+    @app.route("/sse", methods=["GET", "OPTIONS"])
+    def mcp_legacy_sse():
+        if request.method == "OPTIONS":
+            return _cors_preflight()
+        endpoint = f"{public_base_url.rstrip('/')}/mcp"
+        body = f"event: endpoint\ndata: {endpoint}\n\n"
+        return Response(
+            body,
+            status=200,
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
 
     return app
 

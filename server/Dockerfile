@@ -17,4 +17,4 @@ ENV WEB_EVENTS_FILE_CACHE=/tmp/sproutme_web_events_catalog.json
 
 EXPOSE 8080
 
-CMD gunicorn flask_app:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 120
+CMD gunicorn flask_app:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 120 --access-logfile - --error-logfile - --capture-output
