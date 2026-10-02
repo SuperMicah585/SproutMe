@@ -789,9 +789,7 @@ MCP_WRITE_TOOLS = [
 
 def _wants_sse():
     accept = (request.headers.get("Accept") or "").lower()
-    # Prefer JSON when both are advertised (OpenAI scanner + most clients).
-    if "application/json" in accept:
-        return False
+    # OpenAI's scanner advertises both JSON and SSE and expects SSE responses.
     if "text/event-stream" in accept:
         return True
     return False
@@ -811,17 +809,22 @@ def _mcp_response(payload, session_id, status=200):
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Cache-Control": "no-cache",
     }
     if payload is None:
+        # Notifications: accepted with empty body.
+        if _wants_sse():
+            headers["Content-Type"] = "text/event-stream"
+            return Response(b"", status=202, headers=headers)
         headers["Content-Type"] = "application/json"
         return Response(b"", status=202, headers=headers)
     if _wants_sse():
-        body = f"event: message\ndata: {json.dumps(payload)}\n\n"
+        # One-shot SSE message, then end the stream (no hanging connection).
+        body = f"event: message\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
         headers["Content-Type"] = "text/event-stream"
-        headers["Cache-Control"] = "no-cache"
         return Response(body, status=status, headers=headers)
     headers["Content-Type"] = "application/json"
-    return Response(json.dumps(payload), status=status, headers=headers)
+    return Response(json.dumps(payload, separators=(",", ":")), status=status, headers=headers)
 
 
 def register_public_api(
@@ -1000,8 +1003,19 @@ def register_public_api(
         if request.method == "DELETE":
             return Response(status=204, headers={"Access-Control-Allow-Origin": "*"})
         if request.method == "GET":
-            # Streamable HTTP uses GET only for optional standalone SSE streams.
-            # We don't offer one — return 405 so scanners don't hang waiting for SSE.
+            # Optional standalone SSE stream: open briefly then close so scanners
+            # that probe GET don't hang. Spec allows this; we don't push events.
+            if "text/event-stream" in (request.headers.get("Accept") or "").lower():
+                return Response(
+                    b"",
+                    status=200,
+                    headers={
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Mcp-Session-Id": session_id,
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                )
             return Response(
                 status=405,
                 headers={
@@ -1069,6 +1083,12 @@ def handle_mcp_message(message, helpers):
         if authorized_for_write():
             tools = tools + list(MCP_WRITE_TOOLS)
         return _jsonrpc_result(msg_id, {"tools": tools})
+
+    if method in ("resources/list", "resources/templates/list"):
+        return _jsonrpc_result(msg_id, {"resources": []})
+
+    if method == "prompts/list":
+        return _jsonrpc_result(msg_id, {"prompts": []})
 
     if method == "tools/call":
         name = params.get("name")
