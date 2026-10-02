@@ -1050,7 +1050,14 @@ def register_public_api(
         except Exception:
             pass
 
-        message = request.get_json(silent=True)
+        # OpenAI's Connect client posts with Content-Type: application/octet-stream.
+        # Flask get_json() ignores that, so force-parse the raw body as JSON.
+        message = request.get_json(silent=True, force=True)
+        if message is None and request.data:
+            try:
+                message = json.loads(request.data.decode("utf-8"))
+            except Exception:
+                message = None
         if message is None:
             return _mcp_response(_jsonrpc_error(None, -32700, "Parse error"))
 
