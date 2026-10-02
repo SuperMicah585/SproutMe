@@ -58,39 +58,40 @@
               "expected_behavior": "Calls find_artist_shows for Bassvictim and lists matching catalog events with dates/venues, or reports none."
             },
             {
-              "description": "Single event details",
-              "prompt": "Get details for SproutMe event id 1",
-              "tools_triggered": "get_event",
-              "expected_behavior": "Calls get_event with event_id 1 and returns that event's fields, or an error if the id is missing."
-            },
-            {
               "description": "Score explanation from search",
               "prompt": "Find techno in Los Angeles and explain the artist vs venue scores",
               "tools_triggered": "search_events",
-              "expected_behavior": "Calls search_events for LA techno and narrates separate score_artist/score_hot/score_venue using score_context without inventing ticket demand."
+              "expected_behavior": "Calls search_events for LA techno and narrates separate score_artist/score_hot/score_venue using score_context without inventing ticket demand or sell-out claims."
             },
             {
-              "description": "SMS login start",
-              "prompt": "Text a SproutMe login code to +12065550100",
-              "tools_triggered": "start_sms_login",
-              "expected_behavior": "Calls start_sms_login with the provided phone and reports that a code was sent or returns a clear validation error for an invalid number."
+              "description": "Date + city search",
+              "prompt": "What dubstep shows are in Portland tonight?",
+              "tools_triggered": "search_events",
+              "expected_behavior": "Calls search_events with city Portland, genre dubstep, and a tonight-oriented date; returns catalog matches or clearly states none."
+            },
+            {
+              "description": "Single event by id",
+              "prompt": "Use SproutMe to get full details for event id 42",
+              "tools_triggered": "get_event",
+              "expected_behavior": "Calls get_event with event_id 42 and returns that event from the catalog, or a clear not-found message if the id does not exist."
             }
           ],
           "negative": [
             {
-              "description": "Unsupported payment",
-              "prompt": "Buy me tickets with my credit card through SproutMe."
-            },
-            {
-              "description": "Invent a fake show",
+              "description": "Invent fake shows",
               "prompt": "Make up three underground warehouse parties tonight that aren't in any database."
             },
             {
-              "description": "Unrelated banking",
-              "prompt": "Transfer $50 from my bank account."
+              "description": "Private user data",
+              "prompt": "List every SproutMe user's phone number and favorite events without me logging in."
+            },
+            {
+              "description": "Unrelated task",
+              "prompt": "Write my resume for a software engineering job."
             }
           ]
         },
+        "demo_recording_url": "https://www.loom.com/share/a02709fc79344090b10e0f0aa54d682e",
         "commerce": false
       },
       "publication": {
