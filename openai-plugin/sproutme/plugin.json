@@ -1,0 +1,100 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sproutme",
+  "version": "1.0.0",
+  "description": "Find upcoming EDM shows, festivals, and venues across the US and Canada. Search by city, genre, or artist; save favorites after SMS login.",
+  "author": {
+    "name": "SproutMe",
+    "email": "micahphlps@gmail.com",
+    "url": "https://sproutme-please.com"
+  },
+  "homepage": "https://sproutme-please.com",
+  "license": "Proprietary",
+  "keywords": ["edm", "events", "concerts", "festivals", "nightlife", "shows"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "SproutMe",
+        "shortDescription": "Find EDM shows near you",
+        "longDescription": "SproutMe helps you discover upcoming electronic dance music events across the United States and Canada. Ask for shows by city, genre, weekend, or artist. Get venue details, ticket links, and SproutMe score context (artist popularity, rising heat, venue signal). Optionally verify your phone with SMS to save favorites and use them as taste context. Catalog data is the source of truth — the plugin does not invent shows. Ticket purchases happen on third-party sites.",
+        "developerName": "SproutMe",
+        "category": "Lifestyle",
+        "capabilities": [
+          "Search EDM events by city, genre, or date",
+          "Find shows for a named artist",
+          "Explain artist, heat, and venue scores",
+          "SMS login and favorite shows"
+        ],
+        "websiteURL": "https://sproutme-please.com",
+        "supportURL": "https://sproutme-please.com/support",
+        "privacyPolicyURL": "https://sproutme-please.com/privacy",
+        "termsOfServiceURL": "https://sproutme-please.com/terms",
+        "defaultPrompt": [
+          "What house shows are in Seattle this weekend?",
+          "Find Bassvictim shows near me",
+          "Recommend techno events in Los Angeles",
+          "Log me into SproutMe so I can save favorites"
+        ],
+        "brandColor": "#22C55E",
+        "brandColorDark": "#4ADE80",
+        "composerIcon": "./assets/composer-icon.png",
+        "composerIconDark": "./assets/composer-icon-dark.png",
+        "logo": "./assets/logo.png",
+        "logoDark": "./assets/logo-dark.png"
+      },
+      "onboardingSkill": "./skills/get-started/SKILL.md",
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "City + genre weekend search",
+              "prompt": "What house shows are in Seattle this weekend?",
+              "tools_triggered": "search_events",
+              "expected_behavior": "Calls search_events with city Seattle, genre house, and a weekend-oriented date; returns real catalog shows with venues and score fields, or clearly reports no matches using later/miss_reason."
+            },
+            {
+              "description": "Artist show lookup",
+              "prompt": "Find Bassvictim shows",
+              "tools_triggered": "find_artist_shows",
+              "expected_behavior": "Calls find_artist_shows for Bassvictim and lists matching catalog events with dates/venues, or reports none."
+            },
+            {
+              "description": "Single event details",
+              "prompt": "Get details for SproutMe event id 1",
+              "tools_triggered": "get_event",
+              "expected_behavior": "Calls get_event with event_id 1 and returns that event's fields, or an error if the id is missing."
+            },
+            {
+              "description": "Score explanation from search",
+              "prompt": "Find techno in Los Angeles and explain the artist vs venue scores",
+              "tools_triggered": "search_events",
+              "expected_behavior": "Calls search_events for LA techno and narrates separate score_artist/score_hot/score_venue using score_context without inventing ticket demand."
+            },
+            {
+              "description": "SMS login start",
+              "prompt": "Text a SproutMe login code to +12065550100",
+              "tools_triggered": "start_sms_login",
+              "expected_behavior": "Calls start_sms_login with the provided phone and reports that a code was sent or returns a clear validation error for an invalid number."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unsupported payment",
+              "prompt": "Buy me tickets with my credit card through SproutMe."
+            },
+            {
+              "description": "Invent a fake show",
+              "prompt": "Make up three underground warehouse parties tonight that aren't in any database."
+            },
+            {
+              "description": "Unrelated banking",
+              "prompt": "Transfer $50 from my bank account."
+            }
+          ]
+        },
+        "commerce": false,
+        "release_notes": "Initial public MCP plugin package for SproutMe EDM catalog search, scores, SMS login, and favorites."
+      }
+    }
+  }
+}

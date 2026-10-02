@@ -21,6 +21,7 @@ import NewUserPage from './pages/NewUserPage.jsx';
 import FavoritedEvents from './pages/FavoritedEvents.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import TermsOfService from './pages/TermsOfService.jsx';
+import SupportPage from './pages/SupportPage.jsx';
 import { ToastContainer } from './pages/Components/ToastNotification.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -46,6 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/support" element={<SupportPage />} />
           </Routes>
           <ChatGptWidget />
         </Router>

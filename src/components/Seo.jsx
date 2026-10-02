@@ -48,6 +48,11 @@ const ROUTES = {
     description: 'Terms governing use of SproutMe, including the website and ChatGPT plugin.',
     robots: 'index,follow',
   },
+  '/support': {
+    title: 'Support | SproutMe',
+    description: 'Get help with SproutMe on the web and in ChatGPT.',
+    robots: 'index,follow',
+  },
 };
 
 const upsertMeta = (selector, attributes) => {
