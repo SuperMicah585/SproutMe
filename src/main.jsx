@@ -45,9 +45,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             {/* Main pages */}
             <Route path="/events" element={<EventsPage />} />
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="/support" element={<SupportPage />} />
+            <Route path="/privacy" element={<Navigate replace to="/privacy.html" />} />
+            <Route path="/terms" element={<Navigate replace to="/terms.html" />} />
+            <Route path="/support" element={<Navigate replace to="/support.html" />} />
+            <Route path="/privacy.html" element={<PrivacyPolicy />} />
+            <Route path="/terms.html" element={<TermsOfService />} />
+            <Route path="/support.html" element={<SupportPage />} />
           </Routes>
           <ChatGptWidget />
         </Router>

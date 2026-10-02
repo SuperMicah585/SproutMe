@@ -18,7 +18,7 @@
         "shortDescription": "Find EDM shows near you",
         "longDescription": "SproutMe helps you discover upcoming electronic dance music events across the United States and Canada. Ask for shows by city, genre, weekend, or artist. Get venue details, ticket links, and SproutMe score context (artist popularity, rising heat, venue signal). Optionally verify your phone with SMS to save favorites and use them as taste context. Catalog data is the source of truth — the plugin does not invent shows. Ticket purchases happen on third-party sites.",
         "developerName": "SproutMe",
-        "category": "Lifestyle",
+        "category": "Entertainment",
         "capabilities": [
           "Search EDM events by city, genre, or date",
           "Find shows for a named artist",
@@ -26,14 +26,13 @@
           "SMS login and favorite shows"
         ],
         "websiteURL": "https://sproutme-please.com",
-        "supportURL": "https://sproutme-please.com/support",
-        "privacyPolicyURL": "https://sproutme-please.com/privacy",
-        "termsOfServiceURL": "https://sproutme-please.com/terms",
+        "supportURL": "https://sproutme-please.com/support.html",
+        "privacyPolicyURL": "https://sproutme-please.com/privacy.html",
+        "termsOfServiceURL": "https://sproutme-please.com/terms.html",
         "defaultPrompt": [
           "What house shows are in Seattle this weekend?",
           "Find Bassvictim shows near me",
-          "Recommend techno events in Los Angeles",
-          "Log me into SproutMe so I can save favorites"
+          "Recommend techno events in Los Angeles"
         ],
         "brandColor": "#22C55E",
         "brandColorDark": "#4ADE80",
