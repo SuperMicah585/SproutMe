@@ -15,7 +15,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './index.css';
 import EnterNumber from './pages/EnterNumber';
 import VerifyCode from './pages/VerifyCode.jsx';
-import Dashboard from './pages/Dashboard.jsx';
 import EventsPage from './pages/Events.jsx';
 import NewUserPage from './pages/NewUserPage.jsx';
 import FavoritedEvents from './pages/FavoritedEvents.jsx';
@@ -41,7 +40,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/login" element={<EnterNumber />} />
             <Route path="/verify" element={<VerifyCode />} />
             <Route path="/new-user" element={<NewUserPage />} />
-            <Route path="/dashboard" element={<Dashboard />} />
             {/* Main pages */}
             <Route path="/events" element={<EventsPage />} />
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
