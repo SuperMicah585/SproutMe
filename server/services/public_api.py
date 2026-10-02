@@ -6,7 +6,7 @@ import uuid
 from datetime import date, timedelta
 from difflib import SequenceMatcher
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-from flask import Response, jsonify, request
+from flask import Response, jsonify, request, stream_with_context
 
 from services.mcp_auth import favorite_key, favorite_keys, resolve_session
 
@@ -1006,24 +1006,33 @@ def register_public_api(
 
         if request.method == "GET":
             accept = (request.headers.get("Accept") or "").lower()
-            # Back-compat for clients that probe legacy HTTP+SSE first:
-            # emit an endpoint event pointing at this same Streamable HTTP URL.
-            if "text/event-stream" in accept or "*/*" in accept or not accept:
-                endpoint = f"{public_base_url.rstrip('/')}/mcp"
-                body = f"event: endpoint\ndata: {endpoint}\n\n"
+            if "text/event-stream" not in accept and "*/*" not in accept and accept and "application/json" not in accept:
                 return Response(
-                    body,
-                    status=200,
+                    status=405,
                     headers={
-                        "Content-Type": "text/event-stream",
-                        "Cache-Control": "no-cache",
+                        "Allow": "POST, DELETE, OPTIONS",
                         "Access-Control-Allow-Origin": "*",
                     },
                 )
+
+            # OpenAI's scanner (codex-mcp-client) opens GET SSE and reconnects if
+            # the stream closes immediately — it never reaches POST tools/list.
+            # Keep the stream alive; also emit a legacy relative endpoint event.
+            def _sse_stream():
+                yield "event: endpoint\ndata: /mcp\n\n"
+                # Keepalive comments; stream stays open until client disconnects.
+                while True:
+                    yield ": ping\n\n"
+                    time.sleep(15)
+
             return Response(
-                status=405,
+                stream_with_context(_sse_stream()),
+                status=200,
                 headers={
-                    "Allow": "POST, DELETE, OPTIONS",
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache, no-transform",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
                     "Access-Control-Allow-Origin": "*",
                 },
             )
