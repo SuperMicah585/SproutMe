@@ -640,9 +640,18 @@ Website: https://sproutme-please.com (browse only; SMS show-finder is retired).
 """
 
 
+def _tool_annotations(read_only, destructive=False, open_world=False):
+    return {
+        "readOnlyHint": bool(read_only),
+        "destructiveHint": bool(destructive),
+        "openWorldHint": bool(open_world),
+    }
+
+
 MCP_TOOLS = [
     {
         "name": "search_events",
+        "title": "Search events",
         "description": (
             "Search upcoming EDM events by city, genre, date, or free-text. "
             "Returns evidence pack with separate score_artist/score_hot/score_venue and venue location when known. "
@@ -659,9 +668,11 @@ MCP_TOOLS = [
                 "session_token": {"type": "string", "description": "From verify_sms_login; marks is_favorite"},
             },
         },
+        "annotations": _tool_annotations(read_only=True, open_world=False),
     },
     {
         "name": "find_artist_shows",
+        "title": "Find artist shows",
         "description": (
             "Find catalog shows for a named artist. "
             "Optional session_token marks is_favorite."
@@ -677,9 +688,11 @@ MCP_TOOLS = [
                 "session_token": {"type": "string"},
             },
         },
+        "annotations": _tool_annotations(read_only=True, open_world=False),
     },
     {
         "name": "get_event",
+        "title": "Get event",
         "description": "Get one SproutMe event by numeric id.",
         "inputSchema": {
             "type": "object",
@@ -689,9 +702,11 @@ MCP_TOOLS = [
                 "session_token": {"type": "string"},
             },
         },
+        "annotations": _tool_annotations(read_only=True, open_world=False),
     },
     {
         "name": "start_sms_login",
+        "title": "Start SMS login",
         "description": "Send a one-time SMS login code to a phone number (E.164 or US local).",
         "inputSchema": {
             "type": "object",
@@ -700,9 +715,11 @@ MCP_TOOLS = [
                 "phone": {"type": "string", "description": "Phone number, e.g. +12065551212"},
             },
         },
+        "annotations": _tool_annotations(read_only=False, open_world=True),
     },
     {
         "name": "verify_sms_login",
+        "title": "Verify SMS login",
         "description": "Verify the SMS code and return a non-expiring session_token for this chat (favorites / taste).",
         "inputSchema": {
             "type": "object",
@@ -712,9 +729,11 @@ MCP_TOOLS = [
                 "code": {"type": "string", "description": "6-digit Twilio Verify code"},
             },
         },
+        "annotations": _tool_annotations(read_only=False, open_world=True),
     },
     {
         "name": "list_favorites",
+        "title": "List favorites",
         "description": "List the logged-in user's favorite shows (taste context for recommendations).",
         "inputSchema": {
             "type": "object",
@@ -723,9 +742,11 @@ MCP_TOOLS = [
                 "session_token": {"type": "string"},
             },
         },
+        "annotations": _tool_annotations(read_only=True, open_world=False),
     },
     {
         "name": "set_favorite",
+        "title": "Set favorite",
         "description": "Star or unstar an event by id for the logged-in user.",
         "inputSchema": {
             "type": "object",
@@ -736,6 +757,7 @@ MCP_TOOLS = [
                 "starred": {"type": "boolean"},
             },
         },
+        "annotations": _tool_annotations(read_only=False, destructive=False, open_world=False),
     },
 ]
 
@@ -743,6 +765,7 @@ MCP_TOOLS = [
 MCP_WRITE_TOOLS = [
     {
         "name": "add_event",
+        "title": "Add event",
         "description": "Submit a new catalog event (requires Bearer AGENT_API_KEY).",
         "inputSchema": {
             "type": "object",
@@ -759,15 +782,19 @@ MCP_WRITE_TOOLS = [
                 "city": {"type": "string"},
             },
         },
+        "annotations": _tool_annotations(read_only=False, open_world=False),
     },
 ]
 
 
 def _wants_sse():
     accept = (request.headers.get("Accept") or "").lower()
+    # Prefer JSON when both are advertised (OpenAI scanner + most clients).
     if "application/json" in accept:
         return False
-    return "text/event-stream" in accept
+    if "text/event-stream" in accept:
+        return True
+    return False
 
 
 def _jsonrpc_result(msg_id, result):
@@ -786,7 +813,8 @@ def _mcp_response(payload, session_id, status=200):
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     }
     if payload is None:
-        return Response(status=202, headers=headers)
+        headers["Content-Type"] = "application/json"
+        return Response(b"", status=202, headers=headers)
     if _wants_sse():
         body = f"event: message\ndata: {json.dumps(payload)}\n\n"
         headers["Content-Type"] = "text/event-stream"
@@ -972,19 +1000,16 @@ def register_public_api(
         if request.method == "DELETE":
             return Response(status=204, headers={"Access-Control-Allow-Origin": "*"})
         if request.method == "GET":
-            body = {
-                "name": "sproutme",
-                "transport": "streamable_http",
-                "protocol": DEFAULT_PROTOCOL,
-                "openapi": f"{public_base_url}/openapi.json",
-                "tools": [tool["name"] for tool in MCP_TOOLS],
-            }
-            if authorized_for_write():
-                body["tools"] = body["tools"] + [tool["name"] for tool in MCP_WRITE_TOOLS]
-            response = jsonify(body)
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Mcp-Session-Id"] = session_id
-            return response
+            # Streamable HTTP uses GET only for optional standalone SSE streams.
+            # We don't offer one — return 405 so scanners don't hang waiting for SSE.
+            return Response(
+                status=405,
+                headers={
+                    "Allow": "POST, DELETE, OPTIONS",
+                    "Access-Control-Allow-Origin": "*",
+                    "Mcp-Session-Id": session_id,
+                },
+            )
 
         message = request.get_json(silent=True)
         if message is None:
