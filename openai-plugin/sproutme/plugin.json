@@ -92,7 +92,9 @@
             }
           ]
         },
-        "commerce": false,
+        "commerce": false
+      },
+      "publication": {
         "release_notes": "Initial public MCP plugin package for SproutMe EDM catalog search, scores, SMS login, and favorites."
       }
     }
