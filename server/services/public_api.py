@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 import uuid
@@ -867,6 +868,13 @@ def register_public_api(
         response = Response(build_llms_txt(public_base_url), mimetype="text/plain")
         response.headers["Access-Control-Allow-Origin"] = "*"
         return response
+
+    @app.route("/.well-known/openai-apps-challenge", methods=["GET"])
+    def openai_apps_domain_challenge():
+        token = (os.environ.get("OPENAI_APPS_CHALLENGE_TOKEN") or "").strip()
+        if not token:
+            return Response("Not configured", status=404, mimetype="text/plain")
+        return Response(token, mimetype="text/plain; charset=utf-8")
 
     @app.route("/chatgpt/instructions", methods=["GET", "OPTIONS"])
     def chatgpt_instructions():
