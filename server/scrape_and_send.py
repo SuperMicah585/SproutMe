@@ -1386,6 +1386,9 @@ class EventScraper:
         for field in ("event_url", "event_link_url"):
             if row.get(field):
                 row[field] = clean_event_url(row[field])
+        for field in ("image_url", "image_source"):
+            if not row.get(field):
+                row.pop(field, None)
         return row
 
     def fill_missing_event_fields(self, records):
@@ -1943,6 +1946,14 @@ class EventScraper:
                 self._refresh_artist_heat_cache(records)
             except Exception as exc:
                 print(f"Artist heat cache failed; continuing upload: {exc}")
+            try:
+                from services.event_images import attach_event_images
+            except ImportError:
+                from event_images import attach_event_images
+            try:
+                attach_event_images(self.supabase_client, records)
+            except Exception as exc:
+                print(f"Event image attach failed; continuing upload: {exc}")
 
             inserted = 0
             for start in range(0, len(records), 200):
@@ -2057,6 +2068,18 @@ class EventScraper:
         Returns:
             tuple: (success, message) indicating result of operation
         """
+        # Wipe hosted flyer binaries so new events can remap cleanly.
+        try:
+            from services.event_images import clear_event_image_bucket
+        except ImportError:
+            from event_images import clear_event_image_bucket
+        if self.supabase_client:
+            try:
+                cleared = clear_event_image_bucket(self.supabase_client)
+                print(f"Cleared event-images bucket ({cleared.get('deleted', 0)} objects).")
+            except Exception as exc:
+                print(f"event-images bucket clear failed; continuing: {exc}")
+
         # First clear the table
         clear_result = self.clear_table(table_name)
         if not clear_result["success"]:
@@ -2074,14 +2097,14 @@ def main():
         "--backfill-genres", "--backfill-missing", "--backfill-headliners",
         "--backfill-headliners-llm", "--skip-genre-fill", "--skip-fill",
         "--merge-ticketmaster", "--cache-venues", "--cache-artists",
-        "--refresh-artist-heat", "--clean-venues",
+        "--refresh-artist-heat", "--clean-venues", "--attach-images",
     ) and not arg.startswith("--llm-limit=")]
     if extra_args:
         print(
             "Usage: scrape_and_send.py [--backfill-missing] [--backfill-genres] "
             "[--backfill-headliners] [--backfill-headliners-llm] [--llm-limit=N] "
             "[--skip-fill] [--merge-ticketmaster] [--cache-venues] [--cache-artists] "
-            "[--refresh-artist-heat] [--clean-venues]"
+            "[--refresh-artist-heat] [--clean-venues] [--attach-images]"
         )
         return
 
@@ -2147,6 +2170,80 @@ def main():
         success, message = scraper.merge_ticketmaster_into_table(table_name="Events_table")
         print(message)
         print("Process completed." if success else "Process failed.")
+        return
+    if "--attach-images" in sys.argv:
+        print("Attaching flyer/Ticketmaster images onto existing Events_table rows...")
+        try:
+            from services.event_images import attach_event_images, clear_event_image_bucket
+        except ImportError:
+            from event_images import attach_event_images, clear_event_image_bucket
+        try:
+            cleared = clear_event_image_bucket(scraper.supabase_client)
+            print(f"Cleared event-images bucket ({cleared.get('deleted', 0)} objects).")
+        except Exception as exc:
+            print(f"bucket clear failed; continuing: {exc}")
+        records = []
+        start = 0
+        page = 500
+        while True:
+            chunk = (
+                scraper.supabase_client.table("Events_table")
+                .select("id,event_name,venue,city,event_url,event_link_url,image_url,image_source")
+                .range(start, start + page - 1)
+                .execute()
+                .data
+                or []
+            )
+            records.extend(chunk)
+            if len(chunk) < page:
+                break
+            start += page
+        print(f"Loaded {len(records)} events for image attach.")
+        for rec in records:
+            blob = " ".join(
+                str(rec.get(k) or "")
+                for k in ("event_url", "event_link_url", "image_url", "image_source")
+            ).lower()
+            is_tm = (
+                "ticketmaster.com" in blob
+                or "ticketm.net" in blob
+                or (rec.get("image_source") or "") == "ticketmaster"
+            )
+            if is_tm:
+                rec["_source"] = {"provider": "ticketmaster"}
+                # Keep Ticketmaster CDN URLs; they survive the bucket wipe.
+                if rec.get("image_url") and "ticketmaster" in (rec.get("image_url") or "").lower():
+                    rec["image_source"] = rec.get("image_source") or "ticketmaster"
+                    continue
+            # Hosted/flyer URLs die with the bucket wipe — force re-scrape.
+            if (rec.get("image_source") or "").startswith("hosted:") or "/event-images/" in (
+                rec.get("image_url") or ""
+            ):
+                rec["image_url"] = None
+                rec["image_source"] = None
+            elif not is_tm:
+                # Re-scrape non-TM so daily remap stays fresh.
+                rec["image_url"] = None
+                rec["image_source"] = None
+        stats = attach_event_images(scraper.supabase_client, records)
+        updated = 0
+        for rec in records:
+            if rec.get("id") is None:
+                continue
+            if not rec.get("image_url"):
+                continue
+            try:
+                scraper.supabase_client.table("Events_table").update(
+                    {
+                        "image_url": rec.get("image_url"),
+                        "image_source": rec.get("image_source"),
+                    }
+                ).eq("id", rec["id"]).execute()
+                updated += 1
+            except Exception as exc:
+                print(f"image update failed for {rec.get('id')}: {exc}")
+        print(f"Updated {updated} rows. Stats={stats}")
+        print("Process completed.")
         return
     if "--backfill-genres" in sys.argv or "--backfill-missing" in sys.argv:
         print("Backfilling missing event fields...")

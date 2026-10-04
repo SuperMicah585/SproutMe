@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { trackPageView } from '../utils/analytics';
+import { parseHubPathname, unslugifyGuess, hubSeoMeta, SITE_URL } from '../utils/seoPaths';
 
-export const SITE_URL = 'https://sproutme-please.com';
+export { SITE_URL };
 
 const DEFAULT_DESCRIPTION =
   'Find the best EDM shows, concerts, and festivals across the United States and Canada. Discover upcoming electronic dance music events near you.';
@@ -74,26 +75,98 @@ const upsertLink = (rel, href) => {
   el.setAttribute('href', href);
 };
 
+export const applyDocumentSeo = ({
+  title,
+  description,
+  canonicalPath,
+  robots = 'index,follow',
+  track = true,
+} = {}) => {
+  const path = canonicalPath || '/events';
+  const canonical = path.startsWith('http') ? path : `${SITE_URL}${path}`;
+  const pageTitle = title || ROUTES['/events'].title;
+  const pageDescription = description || DEFAULT_DESCRIPTION;
+
+  document.title = pageTitle;
+  upsertMeta('meta[name="description"]', { name: 'description', content: pageDescription });
+  upsertMeta('meta[name="robots"]', { name: 'robots', content: robots });
+  upsertMeta('meta[property="og:title"]', { property: 'og:title', content: pageTitle });
+  upsertMeta('meta[property="og:description"]', { property: 'og:description', content: pageDescription });
+  upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonical });
+  upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: pageTitle });
+  upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: pageDescription });
+  upsertMeta('meta[name="twitter:url"]', { name: 'twitter:url', content: canonical });
+  upsertLink('canonical', canonical);
+  if (track) {
+    const trackPath = path.startsWith('http') ? new URL(path).pathname : path;
+    trackPageView(trackPath, pageTitle);
+  }
+};
+
+export const upsertJsonLd = (id, data) => {
+  if (!data) return;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('script');
+    el.type = 'application/ld+json';
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+};
+
+export const clearJsonLd = (id) => {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+};
+
+const resolveRouteMeta = (pathname) => {
+  if (pathname.startsWith('/favorited_events')) {
+    return { ...ROUTES['/favorited_events'], canonicalPath: pathname };
+  }
+  if (pathname.startsWith('/event/')) {
+    // EventDetail applies precise meta once the event loads.
+    return {
+      title: 'EDM Show | SproutMe',
+      description: DEFAULT_DESCRIPTION,
+      robots: 'index,follow',
+      canonicalPath: pathname,
+    };
+  }
+
+  const hub = parseHubPathname(pathname);
+  if (hub.citySlug || hub.genreSlug) {
+    const cityLabel = hub.citySlug ? unslugifyGuess(hub.citySlug) : null;
+    const genreLabel = hub.genreSlug ? unslugifyGuess(hub.genreSlug) : null;
+    const meta = hubSeoMeta({ cityLabel, genreLabel });
+    return {
+      ...meta,
+      robots: 'index,follow',
+      canonicalPath: pathname,
+    };
+  }
+
+  const routeKey = ROUTES[pathname] ? pathname : '/events';
+  return {
+    ...ROUTES[routeKey],
+    canonicalPath: pathname === '/' ? '/events' : pathname,
+  };
+};
+
 const Seo = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const routeKey = pathname.startsWith('/favorited_events') ? '/favorited_events' : pathname;
-    const meta = ROUTES[routeKey] || ROUTES['/events'];
-    const canonicalPath = pathname === '/' ? '/events' : pathname;
-    const canonical = `${SITE_URL}${canonicalPath}`;
-
-    document.title = meta.title;
-    upsertMeta('meta[name="description"]', { name: 'description', content: meta.description });
-    upsertMeta('meta[name="robots"]', { name: 'robots', content: meta.robots });
-    upsertMeta('meta[property="og:title"]', { property: 'og:title', content: meta.title });
-    upsertMeta('meta[property="og:description"]', { property: 'og:description', content: meta.description });
-    upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonical });
-    upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: meta.title });
-    upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: meta.description });
-    upsertMeta('meta[name="twitter:url"]', { name: 'twitter:url', content: canonical });
-    upsertLink('canonical', canonical);
-    trackPageView(canonicalPath, meta.title);
+    // Event detail owns its SEO after fetch.
+    if (pathname.startsWith('/event/')) return undefined;
+    const meta = resolveRouteMeta(pathname);
+    applyDocumentSeo({
+      title: meta.title,
+      description: meta.description,
+      canonicalPath: meta.canonicalPath,
+      robots: meta.robots,
+    });
+    return undefined;
   }, [pathname]);
 
   return null;

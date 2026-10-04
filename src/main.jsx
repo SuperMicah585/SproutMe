@@ -2,8 +2,8 @@
 (function() {
   // Always default to dark mode on initial page load
   document.documentElement.classList.add('dark');
-  document.documentElement.style.backgroundColor = '#242424';
-  document.documentElement.style.color = 'rgba(255, 255, 255, 0.87)';
+  document.documentElement.style.backgroundColor = '#141816';
+  document.documentElement.style.color = '#e8eee9';
 })();
 
 // Import utility to prevent WebSocket errors in production
@@ -17,6 +17,7 @@ import EnterNumber from './pages/EnterNumber';
 import VerifyCode from './pages/VerifyCode.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import EventsPage from './pages/Events.jsx';
+import EventDetail from './pages/EventDetail.jsx';
 import NewUserPage from './pages/NewUserPage.jsx';
 import FavoritedEvents from './pages/FavoritedEvents.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
@@ -44,6 +45,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/dashboard" element={<Dashboard />} />
             {/* Main pages */}
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/events/in/:citySlug" element={<EventsPage />} />
+            <Route path="/events/genre/:genreSlug" element={<EventsPage />} />
+            <Route path="/events/in/:citySlug/genre/:genreSlug" element={<EventsPage />} />
+            <Route path="/event/:id/:slug?" element={<EventDetail />} />
             <Route path="/favorited_events/:phoneHash" element={<FavoritedEvents />} />
             <Route path="/privacy" element={<Navigate replace to="/privacy.html" />} />
             <Route path="/terms" element={<Navigate replace to="/terms.html" />} />

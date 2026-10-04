@@ -11,15 +11,32 @@ module.exports = {
     theme: {
       extend: {
         fontFamily: {
-          unlock: ['Unlock','cursive'], // Add the Unlock font as a fallback
+          unlock: ['Unlock','cursive'],
           prosto: ["'Prosto One'", "cursive"],
+          pixel: ['FreePixel', 'ui-monospace', 'monospace'],
+          read: ['IBM Plex Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        borderRadius: {
+          pixel: '2px',
+        },
+        colors: {
+          sprout: {
+            void: '#141816',
+            panel: '#1c221f',
+            'panel-2': '#252d29',
+            border: '#3d4a42',
+            lime: '#4ade80',
+            muted: '#9aab9f',
+            sms: '#a78bfa',
+            text: '#e8eee9',
+          },
         },
         backgroundColor: {
-          'dark': '#242424',
-          'light': '#ffffff',
+          'dark': '#141816',
+          'light': '#f4f7f5',
         },
         textColor: {
-          'dark': 'rgba(255, 255, 255, 0.87)',
+          'dark': '#e8eee9',
           'light': '#213547',
         },
       },

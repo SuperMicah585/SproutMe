@@ -19,7 +19,12 @@ const ChatGptWidget = () => {
     }
   });
 
-  if (pathname !== '/events' && !pathname.startsWith('/favorited_events')) {
+  if (
+    pathname !== '/events' &&
+    !pathname.startsWith('/events/') &&
+    !pathname.startsWith('/event/') &&
+    !pathname.startsWith('/favorited_events')
+  ) {
     return null;
   }
 

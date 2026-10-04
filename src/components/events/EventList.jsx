@@ -16,6 +16,7 @@ const EventList = memo(({
   onFavoriteEvent,
   showStarredOnly,
   totalEvents = 0,
+  emptyHints = [],
 }) => {
   const { darkMode } = useTheme();
   const sentinelRef = useRef(null);
@@ -51,8 +52,8 @@ const EventList = memo(({
           {Array.from({ length: 6 }).map((_, index) => (
             <div
               key={index}
-              className={`page-skeleton h-36 rounded-xl border ${
-                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              className={`page-skeleton h-36 border-2 ${
+                darkMode ? 'bg-sprout-panel border-sprout-border' : 'bg-white border-gray-300'
               }`}
             />
           ))}
@@ -66,7 +67,7 @@ const EventList = memo(({
 
   if (error) {
     return (
-      <div className="bg-red-100 border-2 border-red-300 text-red-700 p-4 rounded-lg">
+      <div className={`pixel-panel p-4 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
         {error}
       </div>
     );
@@ -74,13 +75,27 @@ const EventList = memo(({
 
   if (events.length === 0) {
     return (
-      <div className="bg-yellow-50 border-2 border-yellow-300 text-yellow-700 p-6 rounded-xl text-center">
-        <p className="text-lg font-medium">No events found matching your filters.</p>
-        <p className="mt-2">
+      <div className={`pixel-panel p-6 text-center ${darkMode ? 'text-sprout-text' : 'text-gray-800'}`}>
+        <p className="font-read text-lg font-medium">No events found matching your filters.</p>
+        <p className={`font-read mt-2 ${darkMode ? 'text-sprout-muted' : 'text-gray-600'}`}>
           {showStarredOnly
-            ? "You don't have any favorited events matching your current filters. Try adjusting your filters or star some events first."
-            : "Try adjusting your filters to see more results."}
+            ? "You don't have any favorited events matching your current filters."
+            : "Try widening the date range or clearing a filter."}
         </p>
+        {emptyHints?.length > 0 && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {emptyHints.map((hint) => (
+              <button
+                key={hint.id}
+                type="button"
+                onClick={hint.onClick}
+                className="pixel-btn px-3 py-2 text-sm"
+              >
+                {hint.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -88,7 +103,7 @@ const EventList = memo(({
   return (
     <>
       {totalEvents > 0 && (
-        <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        <p className={`font-pixel text-sm mb-3 ${darkMode ? 'text-sprout-muted' : 'text-gray-500'}`}>
           Showing {events.length.toLocaleString()} of {totalEvents.toLocaleString()} events
         </p>
       )}
@@ -113,7 +128,7 @@ const EventList = memo(({
           <div className="page-spinner" aria-label="Loading more events" />
         )}
         {!hasMore && events.length > 0 && (
-          <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+          <p className={`font-pixel text-sm ${darkMode ? 'text-sprout-muted' : 'text-gray-400'}`}>
             End of results
           </p>
         )}

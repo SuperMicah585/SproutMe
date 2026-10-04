@@ -8,6 +8,8 @@ export const emptyStoredFilters = () => ({
   searchTerm: '',
   priceSort: 'none',
   scoreSort: 'none',
+  dateRange: { start: '', end: '' },
+  hasChosenDates: false,
   skipGeo: false,
 });
 

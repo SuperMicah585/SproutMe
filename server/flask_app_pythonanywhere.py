@@ -574,11 +574,13 @@ WEB_EVENT_FIELDS = (
     "ticket_info",
     "organizer",
     "event_url",
+    "image_url",
+    "image_source",
     "user_submitted",
     "is_favorite",
 )
 WEB_EVENT_COLUMNS = (
-    "id,event_name,headliner,date,raw_date,venue,city,genre,ticket_info,organizer,event_url"
+    "id,event_name,headliner,date,raw_date,venue,city,genre,ticket_info,organizer,event_url,image_url,image_source"
 )
 WEB_EVENTS_CACHE_TTL = 300
 WEB_EVENTS_FILE_CACHE = "/home/phelpsm4/sproutMe/.cache/web_events_catalog.json"

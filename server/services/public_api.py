@@ -5,7 +5,11 @@ import time
 import uuid
 from datetime import date, timedelta
 from difflib import SequenceMatcher
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
+from urllib.request import Request, urlopen
+
 from flask import Response, jsonify, request, stream_with_context
 
 from services.mcp_auth import favorite_key, favorite_keys, resolve_session
@@ -15,6 +19,41 @@ DEFAULT_PROTOCOL = "2025-03-26"
 MAX_RESULTS = 20
 DEFAULT_LIMIT = 8
 CACHE_TTL_SECONDS = 60
+SITE_URL = "https://sproutme-please.com"
+EVENTS_WIDGET_URI = "ui://widget/sproutme-events.html"
+EVENTS_WIDGET_MIME = "text/html+skybridge"
+EVENTS_WIDGET_PATH = Path(__file__).resolve().parent.parent / "widgets" / "events.html"
+RENDER_EVENTS_MAX = 12
+MEDIA_PROXY_MAX_BYTES = 1_500_000
+MEDIA_PROXY_TIMEOUT = 12
+_PUBLIC_BASE_URL = ""
+
+# Origins ChatGPT may load for widget images / openExternal (exact hosts; no wildcards).
+WIDGET_RESOURCE_ORIGINS = (
+    "https://wdxzsztlsrzolxadaisl.supabase.co",
+    "https://s1.ticketm.net",
+    "https://s1.ticketmaster.com",
+    "https://media.ticketmaster.com",
+    "https://uk.tmconst.com",
+    "https://partiful.imgix.net",
+    "https://media.base44.com",
+    "https://firebasestorage.googleapis.com",
+    "https://static.wixstatic.com",
+    "https://cdn.sfstation.com",
+    "https://www.eventbrite.com",
+    "https://img.evbuc.com",
+    "https://cdn.evbstatic.com",
+)
+WIDGET_REDIRECT_ORIGINS = (
+    SITE_URL,
+    "https://www.sproutme-please.com",
+    "https://www.ticketmaster.com",
+    "https://www.eventbrite.com",
+    "https://dice.fm",
+    "https://ra.co",
+    "https://www.residentadvisor.net",
+    "https://www.instagram.com",
+)
 # Compact fields for ChatGPT — scores + geo included; no SMS card strings.
 PUBLIC_EVENT_FIELDS = (
     "id",
@@ -27,6 +66,8 @@ PUBLIC_EVENT_FIELDS = (
     "ticket_info",
     "event_url",
     "headliner",
+    "image_url",
+    "image_source",
     "score_artist",
     "score_hot",
     "score_venue",
@@ -62,7 +103,12 @@ Rank by weighting these yourself for the user’s ask (e.g. hot for “what’s 
 Other fields:
 - lat, lng, place_name: venue geo when known — distance/neighborhood talk only; if missing, do not invent
 - is_favorite: true when the logged-in user already saved this show
-- headliner, genre, venue, city, ticket_info, event_url: catalog facts
+- headliner, genre, venue, city, ticket_info, event_url, image_url: catalog facts
+
+UI / flyers:
+- After you pick shows to recommend, ALWAYS call render_events with those event ids (and an optional title).
+- That tool opens the SproutMe flyer cards widget — do not try to paste markdown images yourself.
+- Prefer events that have image_url when equally good; still render even if some lack images.
 
 Login / favorites:
 - session_token does not expire — keep reusing it for the whole chat after verify_sms_login.
@@ -82,6 +128,7 @@ MCP_INSTRUCTIONS = (
     "score_venue = Places review-volume / music-venue signal (not how sold-out tonight is). "
     "Weight them for the user’s intent; explain scores using score_context. "
     "lat/lng/place_name for location when present; is_favorite when session_token is passed. "
+    "After choosing shows to recommend, ALWAYS call render_events with those event ids so flyer cards appear. "
     "Login: session_token never expires in-thread — reuse it after verify_sms_login. "
     "On a new chat there is no session; if they want to save shows or use favorites as taste, offer SMS login "
     "(ask phone → start_sms_login → code → verify_sms_login). Don’t force login for browse-only. "
@@ -165,7 +212,7 @@ def compact_event(event, *, include_favorite_flag=False):
         compact["is_favorite"] = bool(event.get("is_favorite"))
     else:
         compact.pop("is_favorite", None)
-    for key in ("ticket_info", "genre", "city", "event_url"):
+    for key in ("ticket_info", "genre", "city", "event_url", "image_url", "image_source"):
         if not compact.get(key):
             compact.pop(key, None)
     return compact
@@ -628,13 +675,14 @@ Do not scrape the website. Never invent shows.
 - Get one event: GET {public_base_url}/v1/events/{{id}}
 - Add event (Bearer AGENT_API_KEY): POST {public_base_url}/v1/events
 
-MCP tools: search_events, find_artist_shows, get_event, start_sms_login, verify_sms_login, list_favorites, set_favorite.
+MCP tools: search_events, find_artist_shows, get_event, render_events, start_sms_login, verify_sms_login, list_favorites, set_favorite.
 add_event is write-gated and omitted from the default plugin tool list.
 
 Evidence pack: data, later, applied, miss_reason, score_context.
-Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner,
+Event fields: id, event_name, date, raw_date, venue, city, genre, ticket_info, event_url, headliner, image_url,
 score_artist (catalog popularity — not ticket sales), score_hot (breakout/rising — not verified demand),
 score_venue (Places venue signal — not sell-out), lat, lng, place_name, is_favorite (when logged in).
+After recommending, call render_events with event ids to show flyer cards.
 
 Website: https://sproutme-please.com (browse only; SMS show-finder is retired).
 """
@@ -648,6 +696,120 @@ def _tool_annotations(read_only, destructive=False, open_world=False):
     }
 
 
+def _slugify(value):
+    text = re.sub(r"[\u0300-\u036f]", "", str(value or "").lower())
+    text = text.replace("&", " and ")
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text[:80] or "show"
+
+
+def event_detail_url(event):
+    event_id = event.get("id") if isinstance(event, dict) else None
+    if event_id is None:
+        return SITE_URL + "/events"
+    bits = [event.get("event_name"), event.get("venue"), event.get("city")]
+    slug = _slugify(" ".join(str(bit) for bit in bits if bit))
+    return f"{SITE_URL}/event/{event_id}/{slug}"
+
+
+def _load_events_widget_html():
+    try:
+        return EVENTS_WIDGET_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return (
+            "<!DOCTYPE html><html><body><p>SproutMe events widget missing on server.</p></body></html>"
+        )
+
+
+def _public_origin():
+    base = (_PUBLIC_BASE_URL or "").rstrip("/")
+    if base.startswith("http://") or base.startswith("https://"):
+        return base
+    return "https://sproutme-api-production.up.railway.app"
+
+
+def _widget_resource_domains():
+    origins = [_public_origin()]
+    for origin in WIDGET_RESOURCE_ORIGINS:
+        if origin not in origins:
+            origins.append(origin)
+    return origins
+
+
+def _events_widget_meta():
+    resource_domains = _widget_resource_domains()
+    redirect_domains = list(WIDGET_REDIRECT_ORIGINS)
+    api_origin = _public_origin()
+    if api_origin not in redirect_domains:
+        redirect_domains.append(api_origin)
+    return {
+        "ui": {
+            "resourceUri": EVENTS_WIDGET_URI,
+            "prefersBorder": True,
+            "csp": {
+                "resourceDomains": resource_domains,
+                "connectDomains": [api_origin],
+            },
+        },
+        "openai/outputTemplate": EVENTS_WIDGET_URI,
+        "openai/widgetAccessible": True,
+        "openai/toolInvocation/invoking": "Pulling up flyer cards…",
+        "openai/toolInvocation/invoked": "Flyer cards ready",
+        "openai/widgetCSP": {
+            "resource_domains": resource_domains,
+            "connect_domains": [api_origin],
+            "redirect_domains": redirect_domains,
+        },
+    }
+
+
+def proxied_image_url(url):
+    """Serve flyer images through our API so ChatGPT CSP only needs one origin."""
+    raw = (url or "").strip()
+    if not raw.startswith(("http://", "https://")):
+        return ""
+    # Already proxied.
+    if "/v1/media" in raw and "u=" in raw:
+        return raw
+    return f"{_public_origin()}/v1/media?u={quote(raw, safe='')}"
+
+
+def widget_event_card(event):
+    compact = compact_event(event, include_favorite_flag=("is_favorite" in (event or {})))
+    if not compact:
+        return None
+    image_url = compact.get("image_url") or ""
+    return {
+        "id": compact.get("id"),
+        "event_name": compact.get("event_name"),
+        "date": compact.get("date"),
+        "venue": compact.get("venue"),
+        "city": compact.get("city"),
+        "genre": compact.get("genre"),
+        "ticket_info": compact.get("ticket_info"),
+        "event_url": compact.get("event_url"),
+        "image_url": proxied_image_url(image_url) if image_url else None,
+        "detail_url": event_detail_url(compact),
+        "is_favorite": compact.get("is_favorite"),
+    }
+
+
+def build_render_payload(events, title=""):
+    cards = []
+    for event in events or []:
+        card = widget_event_card(event)
+        if card:
+            cards.append(card)
+        if len(cards) >= RENDER_EVENTS_MAX:
+            break
+    # Prefer cards with flyers so ChatGPT's first viewport isn't all placeholders.
+    cards.sort(key=lambda card: (0 if card.get("image_url") else 1))
+    payload = {"events": cards}
+    if title:
+        payload["title"] = str(title).strip()[:80]
+    return payload
+
+
 MCP_TOOLS = [
     {
         "name": "search_events",
@@ -655,6 +817,7 @@ MCP_TOOLS = [
         "description": (
             "Search upcoming EDM events by city, genre, date, or free-text. "
             "Returns evidence pack with separate score_artist/score_hot/score_venue and venue location when known. "
+            "After choosing shows to recommend, call render_events with their ids so flyer cards appear. "
             "Optional session_token marks is_favorite."
         ),
         "inputSchema": {
@@ -675,6 +838,7 @@ MCP_TOOLS = [
         "title": "Find artist shows",
         "description": (
             "Find catalog shows for a named artist. "
+            "After choosing shows, call render_events with their ids. "
             "Optional session_token marks is_favorite."
         ),
         "inputSchema": {
@@ -693,7 +857,7 @@ MCP_TOOLS = [
     {
         "name": "get_event",
         "title": "Get event",
-        "description": "Get one SproutMe event by numeric id.",
+        "description": "Get one SproutMe event by numeric id. Call render_events with that id to show its flyer card.",
         "inputSchema": {
             "type": "object",
             "required": ["event_id"],
@@ -703,6 +867,35 @@ MCP_TOOLS = [
             },
         },
         "annotations": _tool_annotations(read_only=True, open_world=False),
+    },
+    {
+        "name": "render_events",
+        "title": "Render event flyer cards",
+        "description": (
+            "Render SproutMe flyer cards for chosen event ids. "
+            "Always call this after search_events / find_artist_shows / get_event when recommending shows to the user. "
+            "Pass 1–12 catalog event ids from prior tool results."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["event_ids"],
+            "properties": {
+                "event_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "minItems": 1,
+                    "maxItems": RENDER_EVENTS_MAX,
+                    "description": "Catalog event ids from prior search/get results",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Optional short heading above the cards, e.g. Tonight in SF",
+                },
+                "session_token": {"type": "string"},
+            },
+        },
+        "annotations": _tool_annotations(read_only=True, open_world=False),
+        "_meta": _events_widget_meta(),
     },
     {
         "name": "start_sms_login",
@@ -844,6 +1037,8 @@ def register_public_api(
     add_event(payload_dict) -> (result_dict, status_code)
     Auth callbacks optional — required for MCP login/favorites tools.
     """
+    global _PUBLIC_BASE_URL
+    _PUBLIC_BASE_URL = (public_base_url or "").rstrip("/")
 
     def cached_events():
         now = time.time()
@@ -912,6 +1107,62 @@ def register_public_api(
             return _cors_preflight()
         response = Response(CHATGPT_GPT_INSTRUCTIONS, mimetype="text/plain; charset=utf-8")
         response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    @app.route("/v1/media", methods=["GET", "OPTIONS"])
+    def v1_media_proxy():
+        """Proxy flyer images so ChatGPT widget CSP can allow a single API origin."""
+        if request.method == "OPTIONS":
+            return _cors_preflight()
+        target = (request.args.get("u") or "").strip()
+        if not target.startswith(("http://", "https://")):
+            return Response("Bad url", status=400, mimetype="text/plain")
+        parsed = urlparse(target)
+        host = (parsed.hostname or "").lower()
+        if not host or host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}:
+            return Response("Host not allowed", status=400, mimetype="text/plain")
+        # Block obvious private/link-local targets (basic SSRF guard).
+        if host.startswith("10.") or host.startswith("192.168.") or host.startswith("169.254."):
+            return Response("Host not allowed", status=400, mimetype="text/plain")
+        if host.startswith("172."):
+            try:
+                second = int(host.split(".")[1])
+                if 16 <= second <= 31:
+                    return Response("Host not allowed", status=400, mimetype="text/plain")
+            except (IndexError, ValueError):
+                pass
+        try:
+            req = Request(
+                target,
+                headers={
+                    "User-Agent": "SproutMeMediaProxy/1.0 (+https://sproutme-please.com)",
+                    "Accept": "image/*,*/*;q=0.8",
+                },
+            )
+            with urlopen(req, timeout=MEDIA_PROXY_TIMEOUT) as upstream:
+                content_type = (upstream.headers.get("Content-Type") or "application/octet-stream").split(";")[0].strip()
+                data = upstream.read(MEDIA_PROXY_MAX_BYTES + 1)
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            return Response(f"Upstream fetch failed: {exc}", status=502, mimetype="text/plain")
+        if len(data) > MEDIA_PROXY_MAX_BYTES:
+            return Response("Image too large", status=413, mimetype="text/plain")
+        if content_type and not content_type.startswith("image/") and content_type not in {
+            "application/octet-stream",
+        }:
+            return Response("Not an image", status=415, mimetype="text/plain")
+        if not content_type.startswith("image/"):
+            path = parsed.path.lower()
+            if path.endswith(".png"):
+                content_type = "image/png"
+            elif path.endswith(".webp"):
+                content_type = "image/webp"
+            elif path.endswith(".gif"):
+                content_type = "image/gif"
+            else:
+                content_type = "image/jpeg"
+        response = Response(data, mimetype=content_type)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
     @app.route("/v1/events", methods=["GET", "OPTIONS"])
@@ -1119,8 +1370,11 @@ def handle_mcp_message(message, helpers):
         protocol = requested if requested in PROTOCOL_VERSIONS else DEFAULT_PROTOCOL
         return _jsonrpc_result(msg_id, {
             "protocolVersion": protocol,
-            "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "sproutme", "version": "1.1.0"},
+            "capabilities": {
+                "tools": {"listChanged": False},
+                "resources": {"listChanged": False},
+            },
+            "serverInfo": {"name": "sproutme", "version": "1.2.0"},
             "instructions": MCP_INSTRUCTIONS,
         })
 
@@ -1133,8 +1387,42 @@ def handle_mcp_message(message, helpers):
             tools = tools + list(MCP_WRITE_TOOLS)
         return _jsonrpc_result(msg_id, {"tools": tools})
 
-    if method in ("resources/list", "resources/templates/list"):
-        return _jsonrpc_result(msg_id, {"resources": []})
+    if method == "resources/list":
+        return _jsonrpc_result(msg_id, {
+            "resources": [{
+                "uri": EVENTS_WIDGET_URI,
+                "name": "SproutMe event flyer cards",
+                "title": "SproutMe event flyer cards",
+                "description": "Inline flyer cards for recommended shows",
+                "mimeType": EVENTS_WIDGET_MIME,
+                "_meta": _events_widget_meta(),
+            }],
+        })
+
+    if method == "resources/templates/list":
+        return _jsonrpc_result(msg_id, {
+            "resourceTemplates": [{
+                "uriTemplate": EVENTS_WIDGET_URI,
+                "name": "SproutMe event flyer cards",
+                "title": "SproutMe event flyer cards",
+                "description": "Inline flyer cards for recommended shows",
+                "mimeType": EVENTS_WIDGET_MIME,
+                "_meta": _events_widget_meta(),
+            }],
+        })
+
+    if method == "resources/read":
+        uri = str((params.get("uri") or "")).strip()
+        if uri != EVENTS_WIDGET_URI:
+            return _jsonrpc_error(msg_id, -32002, f"Unknown resource: {uri}")
+        return _jsonrpc_result(msg_id, {
+            "contents": [{
+                "uri": EVENTS_WIDGET_URI,
+                "mimeType": EVENTS_WIDGET_MIME,
+                "text": _load_events_widget_html(),
+                "_meta": _events_widget_meta(),
+            }],
+        })
 
     if method == "prompts/list":
         return _jsonrpc_result(msg_id, {"prompts": []})
@@ -1143,17 +1431,32 @@ def handle_mcp_message(message, helpers):
         name = params.get("name")
         arguments = params.get("arguments") or {}
         try:
-            text, is_error = call_tool(name, arguments, helpers)
+            result = call_tool(name, arguments, helpers)
         except Exception as exc:
-            text, is_error = f"Tool error: {exc}", True
-        return _jsonrpc_result(msg_id, {
-            "content": [{"type": "text", "text": text}],
-            "isError": is_error,
-        })
+            result = {
+                "content": [{"type": "text", "text": f"Tool error: {exc}"}],
+                "isError": True,
+            }
+        return _jsonrpc_result(msg_id, result)
 
     if msg_id is None:
         return None
     return _jsonrpc_error(msg_id, -32601, f"Method not found: {method}")
+
+
+def _tool_text_result(payload, *, is_error=False, structured=None, widget=False):
+    text = payload if isinstance(payload, str) else json.dumps(payload, indent=2)
+    result = {
+        "content": [{"type": "text", "text": text}],
+        "isError": bool(is_error),
+    }
+    if structured is not None:
+        result["structuredContent"] = structured
+    elif isinstance(payload, dict) and not is_error:
+        result["structuredContent"] = payload
+    if widget and not is_error:
+        result["_meta"] = _events_widget_meta()
+    return result
 
 
 def call_tool(name, arguments, helpers):
@@ -1179,7 +1482,7 @@ def call_tool(name, arguments, helpers):
             limit=arguments.get("limit", DEFAULT_LIMIT),
             favorite_set=fav_set,
         )
-        return json.dumps(result, indent=2), False
+        return _tool_text_result(result)
 
     if name == "find_artist_shows":
         fav_set = favorite_set_for_token(arguments.get("session_token"))
@@ -1191,14 +1494,14 @@ def call_tool(name, arguments, helpers):
             limit=arguments.get("limit", 5),
             favorite_set=fav_set,
         )
-        return json.dumps(result, indent=2), False
+        return _tool_text_result(result)
 
     if name == "get_event":
         event_id = arguments.get("event_id")
         try:
             event_id = int(event_id)
         except (TypeError, ValueError):
-            return "event_id must be an integer", True
+            return _tool_text_result("event_id must be an integer", is_error=True)
         raw = get_event(event_id)
         fav_set = favorite_set_for_token(arguments.get("session_token"))
         if raw and fav_set is not None:
@@ -1206,58 +1509,109 @@ def call_tool(name, arguments, helpers):
             raw["is_favorite"] = favorite_key(raw) in fav_set
         event = compact_event(raw, include_favorite_flag=fav_set is not None)
         if not event:
-            return f"No event found with id {event_id}", True
-        return json.dumps(event, indent=2), False
+            return _tool_text_result(f"No event found with id {event_id}", is_error=True)
+        return _tool_text_result(event)
+
+    if name == "render_events":
+        raw_ids = arguments.get("event_ids") or []
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return _tool_text_result("event_ids must be a non-empty array of integers", is_error=True)
+        event_ids = []
+        for value in raw_ids[:RENDER_EVENTS_MAX]:
+            try:
+                event_ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        if not event_ids:
+            return _tool_text_result("event_ids must contain integers", is_error=True)
+
+        fav_set = favorite_set_for_token(arguments.get("session_token"))
+        by_id = {}
+        for event_id in event_ids:
+            raw = get_event(event_id)
+            if not raw:
+                # Fall back to catalog cache in case get_event misses user-submitted edge cases.
+                for candidate in cached_events():
+                    if candidate.get("id") == event_id:
+                        raw = candidate
+                        break
+            if not raw:
+                continue
+            if fav_set is not None:
+                raw = dict(raw)
+                raw["is_favorite"] = favorite_key(raw) in fav_set
+            by_id[event_id] = raw
+
+        ordered = [by_id[eid] for eid in event_ids if eid in by_id]
+        if not ordered:
+            return _tool_text_result("No matching catalog events for those ids", is_error=True)
+
+        payload = build_render_payload(ordered, title=arguments.get("title") or "")
+        summary = {
+            "rendered": len(payload["events"]),
+            "with_image": sum(1 for e in payload["events"] if e.get("image_url")),
+            "event_ids": [e.get("id") for e in payload["events"]],
+            "title": payload.get("title"),
+        }
+        return _tool_text_result(
+            {
+                "message": f"Rendered {summary['rendered']} flyer card(s).",
+                **summary,
+            },
+            structured=payload,
+            widget=True,
+        )
 
     if name == "start_sms_login":
         if not start_sms_login:
-            return "SMS login is not configured", True
+            return _tool_text_result("SMS login is not configured", is_error=True)
         result = start_sms_login(arguments.get("phone") or "")
         ok = bool(result.get("success"))
-        return json.dumps(result, indent=2), not ok
+        return _tool_text_result(result, is_error=not ok)
 
     if name == "verify_sms_login":
         if not verify_sms_login:
-            return "SMS login is not configured", True
+            return _tool_text_result("SMS login is not configured", is_error=True)
         result = verify_sms_login(arguments.get("phone") or "", arguments.get("code") or "")
         ok = bool(result.get("success"))
-        return json.dumps(result, indent=2), not ok
+        return _tool_text_result(result, is_error=not ok)
 
     if name == "list_favorites":
         if not list_favorites:
-            return "Favorites are not configured", True
+            return _tool_text_result("Favorites are not configured", is_error=True)
         phone = resolve_session(arguments.get("session_token") or "")
         if not phone:
-            return "Invalid session_token. Call verify_sms_login first.", True
+            return _tool_text_result("Invalid session_token. Call verify_sms_login first.", is_error=True)
         result = list_favorites(phone) or {}
         data = [compact_event(e) for e in (result.get("data") or [])]
         data = [e for e in data if e]
-        return json.dumps({"success": bool(result.get("success", True)), "data": data, "count": len(data)}, indent=2), False
+        payload = {"success": bool(result.get("success", True)), "data": data, "count": len(data)}
+        return _tool_text_result(payload)
 
     if name == "set_favorite":
         if not set_favorite:
-            return "Favorites are not configured", True
+            return _tool_text_result("Favorites are not configured", is_error=True)
         phone = resolve_session(arguments.get("session_token") or "")
         if not phone:
-            return "Invalid session_token. Call verify_sms_login first.", True
+            return _tool_text_result("Invalid session_token. Call verify_sms_login first.", is_error=True)
         try:
             event_id = int(arguments.get("event_id"))
         except (TypeError, ValueError):
-            return "event_id must be an integer", True
+            return _tool_text_result("event_id must be an integer", is_error=True)
         starred = arguments.get("starred")
         if isinstance(starred, str):
             starred = starred.strip().lower() in {"1", "true", "yes", "on"}
         result = set_favorite(phone, event_id, bool(starred))
         ok = bool(result.get("success"))
-        return json.dumps(result, indent=2), not ok
+        return _tool_text_result(result, is_error=not ok)
 
     if name == "add_event":
         if not authorized_for_write():
-            return "Missing or invalid API key", True
+            return _tool_text_result("Missing or invalid API key", is_error=True)
         result, status = add_event(arguments)
         if status in (200, 201) and result.get("success"):
             invalidate_cache()
-            return json.dumps(compact_event(result.get("data")) or result, indent=2), False
-        return result.get("message") or "Could not add event", True
+            return _tool_text_result(compact_event(result.get("data")) or result)
+        return _tool_text_result(result.get("message") or "Could not add event", is_error=True)
 
-    return f"Unknown tool: {name}", True
+    return _tool_text_result(f"Unknown tool: {name}", is_error=True)

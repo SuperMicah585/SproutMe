@@ -2,15 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Define your custom font */
 @font-face {
   font-family: 'FreePixel';
   src: url('/fonts/FreePixel.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
-/* Critical performance class used to disable transitions */
+:root {
+  --sprout-void: #141816;
+  --sprout-panel: #1c221f;
+  --sprout-panel-2: #252d29;
+  --sprout-border: #3d4a42;
+  --sprout-lime: #4ade80;
+  --sprout-lime-dim: #22c55e;
+  --sprout-text: #e8eee9;
+  --sprout-muted: #9aab9f;
+  --sprout-sms: #a78bfa;
+  --font-pixel: 'FreePixel', ui-monospace, monospace;
+  --font-read: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+
+  font-family: var(--font-read);
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: var(--sprout-text);
+  background-color: var(--sprout-void);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .no-transitions,
 .no-transitions * {
   transition: none !important;
@@ -30,6 +54,88 @@
   animation: spin 1s linear infinite;
 }
 
+.font-pixel {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.02em;
+}
+
+.font-read {
+  font-family: var(--font-read);
+}
+
+.pixel-icon {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.pixel-grid {
+  background-color: var(--sprout-void);
+  background-image:
+    linear-gradient(rgba(74, 222, 128, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 222, 128, 0.035) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+html:not(.dark) .pixel-grid {
+  background-color: #f4f7f5;
+  background-image:
+    linear-gradient(rgba(22, 101, 52, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22, 101, 52, 0.05) 1px, transparent 1px);
+}
+
+.pixel-panel {
+  border: 2px solid var(--sprout-border);
+  border-radius: 2px;
+  background: var(--sprout-panel);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+html:not(.dark) .pixel-panel {
+  background: #ffffff;
+  border-color: #b7c9bc;
+  box-shadow: 3px 3px 0 rgba(22, 101, 52, 0.12);
+}
+
+.pixel-btn {
+  font-family: var(--font-pixel);
+  border: 2px solid var(--sprout-lime-dim);
+  border-radius: 2px;
+  background: var(--sprout-lime-dim);
+  color: #052e16;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.pixel-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.pixel-btn-ghost {
+  font-family: var(--font-pixel);
+  border: 2px solid var(--sprout-border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--sprout-text);
+}
+
+.pixel-tag {
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  border: 1px solid var(--sprout-lime-dim);
+  border-radius: 0;
+  padding: 0.15rem 0.4rem;
+  color: var(--sprout-lime);
+  background: rgba(34, 197, 94, 0.08);
+  white-space: nowrap;
+}
+
+html:not(.dark) .pixel-tag {
+  color: #166534;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
 .mobile-nav-item {
   -webkit-tap-highlight-color: transparent;
   -webkit-appearance: none;
@@ -45,48 +151,36 @@
   filter: brightness(0.88);
 }
 
-/* Dark mode styles (default) */
-:root {
-  /* Primary font is your custom font, fallback to system fonts */
-  font-family: 'FreePixel', -apple-system, BlinkMacSystemFont, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: dark; /* Default to dark color scheme */
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Fast link styles */
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--sprout-lime);
   text-decoration: inherit;
 }
+
 a:hover {
-  color: #535bf2;
+  color: #86efac;
 }
 
 html,
 body,
 #root {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  font-family: 'FreePixel', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #242424;
-  color: rgba(255, 255, 255, 0.87);
+  font-family: var(--font-read);
+  background-color: var(--sprout-void);
+  color: var(--sprout-text);
+  overflow-x: hidden;
 }
 
 #root {
@@ -100,60 +194,53 @@ body {
 }
 
 .page-spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 9999px;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0;
   border: 3px solid rgba(34, 197, 94, 0.22);
   border-top-color: #22c55e;
-  animation: page-spin 0.7s linear infinite;
+  animation: page-spin 0.55s steps(8) infinite;
 }
 
 @keyframes page-pulse {
   0%,
   100% {
-    opacity: 0.45;
+    opacity: 0.55;
   }
   50% {
-    opacity: 0.18;
+    opacity: 0.22;
   }
 }
 
 .page-skeleton {
-  animation: page-pulse 1.4s ease-in-out infinite;
+  animation: page-pulse 1.1s steps(3) infinite;
+  border-radius: 2px;
 }
 
-/* Dark mode styles with minimum properties */
 html.dark {
-  background-color: #242424;
-  color: rgba(255, 255, 255, 0.87);
+  background-color: var(--sprout-void);
+  color: var(--sprout-text);
   color-scheme: dark;
 }
 
 html.dark body {
-  background-color: #242424;
-  color: rgba(255, 255, 255, 0.87);
+  background-color: var(--sprout-void);
+  color: var(--sprout-text);
 }
 
-/* Light mode styles with minimum properties */
 html:not(.dark) {
-  background-color: #ffffff;
+  background-color: #f4f7f5;
   color: #213547;
   color-scheme: light;
 }
 
 html:not(.dark) body {
-  background-color: #ffffff;
+  background-color: #f4f7f5;
   color: #213547;
 }
 
-/* Basic element styles without transitions */
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
 button {
-  border-radius: 8px;
+  border-radius: 2px;
   border: 1px solid transparent;
   font-size: 1em;
   font-weight: 500;
@@ -161,13 +248,12 @@ button {
   cursor: pointer;
 }
 
-/* Focus styles */
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid var(--sprout-lime);
+  outline-offset: 2px;
 }
 
-/* Shine animation for tooltips */
 @keyframes shine {
   0% {
     transform: translateX(-100%);
@@ -181,33 +267,29 @@ button:focus-visible {
   animation: shine 2s infinite;
 }
 
-/* Custom scrollbar - Dark mode (default) */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: #101412;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a4a4a;
-  border-radius: 4px;
+  background: #3d4a42;
+  border-radius: 0;
+  border: 2px solid #101412;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a5a;
+  background: #4ade80;
 }
 
-/* Light mode scrollbar */
 html:not(.dark) ::-webkit-scrollbar-track {
-  background: #f0f0f0;
+  background: #e8efe9;
 }
 
 html:not(.dark) ::-webkit-scrollbar-thumb {
-  background: #c0c0c0;
-}
-
-html:not(.dark) ::-webkit-scrollbar-thumb:hover {
-  background: #a0a0a0;
+  background: #9aab9f;
+  border-color: #e8efe9;
 }

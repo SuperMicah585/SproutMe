@@ -144,6 +144,11 @@ def _map_ticketmaster_event(event):
     except ImportError:
         from catalog_normalize import normalize_event, serialize_headliners
     headliner = serialize_headliners(headliners, limit=3) if headliners else ""
+    try:
+        from services.event_images import best_ticketmaster_image
+    except ImportError:
+        from event_images import best_ticketmaster_image
+    image_url = best_ticketmaster_image(event)
     row = {
         "date": raw_date,
         "event_name": event_name,
@@ -157,6 +162,8 @@ def _map_ticketmaster_event(event):
         "event_link_text": "Tickets",
         "raw_date": raw_date,
         "headliner": headliner,
+        "image_url": image_url or None,
+        "image_source": "ticketmaster" if image_url else None,
         "_skip_enrich": True,
         "_source": {
             "event_name": event_name,
