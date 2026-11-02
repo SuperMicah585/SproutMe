@@ -15,6 +15,7 @@ MAX_FETCH_PER_RUN = 80
 FETCH_PAUSE_SEC = 0.2
 MAX_RETRY_AFTER_SEC = 180
 LB_FLUSH_SIZE = 50
+STALE_AFTER_DAYS = 7
 JUNK_HEADLINER_RE = re.compile(
     r"\b(festival|fest\b|campout|camp out|day party|night party|rave experience)\b",
     re.I,
@@ -176,6 +177,28 @@ def _snapshot_map(supabase, keys):
     return grouped
 
 
+def _is_stale(row, now=None):
+    now = now or datetime.now(timezone.utc)
+    stamp = _parse_fetched_at((row or {}).get("fetched_at"))
+    if not stamp:
+        return True
+    return (now - stamp).days >= STALE_AFTER_DAYS
+
+
+def _points_from_prev(existing):
+    """Synthesize an older snapshot from prev_* when weekly history is missing."""
+    if not existing:
+        return []
+    if existing.get("prev_popularity") is None and existing.get("prev_followers") is None:
+        return []
+    return [{
+        "artist_key": existing.get("artist_key"),
+        "popularity": existing.get("prev_popularity"),
+        "followers": existing.get("prev_followers"),
+        "fetched_at": existing.get("prev_fetched_at") or existing.get("fetched_at"),
+    }]
+
+
 def rise_score_from_snapshots(points, followers=None):
     if not points or len(points) < 2:
         return 0.0
@@ -246,7 +269,8 @@ def _heat_row(item, existing, stats, stamp, weekly, history):
         "fetched_at": stamp,
         "updated_at": stamp,
     }
-    if existing.get("fetched_at") and weekly:
+    refetching = bool(existing.get("fetched_at"))
+    if refetching:
         row["prev_popularity"] = existing.get("popularity")
         row["prev_followers"] = existing.get("followers")
         row["prev_fetched_at"] = existing.get("fetched_at")
@@ -255,13 +279,15 @@ def _heat_row(item, existing, stats, stamp, weekly, history):
         row["prev_followers"] = existing.get("prev_followers")
         row["prev_fetched_at"] = existing.get("prev_fetched_at")
     points = list(history.get(key) or [])
-    if weekly or not existing:
-        points.append({
-            "artist_key": key,
-            "popularity": popularity,
-            "followers": followers,
-            "fetched_at": stamp,
-        })
+    if len(points) < 2:
+        for extra in _points_from_prev(existing):
+            points.insert(0, extra)
+    points.append({
+        "artist_key": key,
+        "popularity": popularity,
+        "followers": followers,
+        "fetched_at": stamp,
+    })
     row["rise_score"] = rise_score_from_snapshots(points, followers=followers)
     snapshot = {
         "artist_key": key,
@@ -288,13 +314,44 @@ def refresh_artist_heat_cache(
 
     cached_rows = _pages(supabase, CACHE_TABLE)
     cached = {row.get("artist_key"): row for row in cached_rows if row.get("artist_key")}
+    wanted_keys = {item["artist_key"] for item in artists}
     missing = [item for item in artists if item["artist_key"] not in cached]
+    now = datetime.now(timezone.utc)
     if weekly:
-        todo = list(cached.values())
-        for item in missing:
-            todo.append(item)
+        todo = []
+        seen = set()
+        for item in artists:
+            row = cached.get(item["artist_key"]) or {}
+            todo.append({
+                "artist_key": item["artist_key"],
+                "query": item.get("query") or row.get("query") or item["artist_key"],
+                "display_name": item.get("display_name") or row.get("display_name"),
+                "mbid": row.get("mbid"),
+            })
+            seen.add(item["artist_key"])
+        for key, row in cached.items():
+            if key in seen or key not in wanted_keys:
+                continue
+            todo.append({
+                "artist_key": key,
+                "query": row.get("query") or key,
+                "display_name": row.get("display_name"),
+                "mbid": row.get("mbid"),
+            })
     else:
-        todo = missing
+        stale = []
+        for item in artists:
+            row = cached.get(item["artist_key"])
+            if not row or not _is_stale(row, now):
+                continue
+            stale.append({
+                "artist_key": item["artist_key"],
+                "query": item.get("query") or row.get("query") or item["artist_key"],
+                "display_name": item.get("display_name") or row.get("display_name"),
+                "mbid": row.get("mbid"),
+            })
+        stale.sort(key=lambda item: (cached.get(item["artist_key"]) or {}).get("fetched_at") or "")
+        todo = missing + stale
 
     if max_fetch is None:
         deferred = 0
@@ -302,12 +359,13 @@ def refresh_artist_heat_cache(
         deferred = max(0, len(todo) - max_fetch)
         todo = todo[:max_fetch]
     hits = len(artists) - len(missing)
+    stale_n = sum(1 for item in todo if item.get("artist_key") in cached)
     print(
         f"Artist heat plan: {len(artists)} headliners, {len(missing)} unseen, "
-        f"{len(todo)} this run, {deferred} deferred, source=listenbrainz, weekly={weekly}."
+        f"{stale_n} stale, {len(todo)} this run, {deferred} deferred, "
+        f"source=listenbrainz, weekly={weekly}."
     )
 
-    now = datetime.now(timezone.utc)
     stamp = now.isoformat()
     fetched = 0
     errors = 0
@@ -316,7 +374,7 @@ def refresh_artist_heat_cache(
     snapshots = []
     snapshot_count = 0
     snapshot_keys = [item.get("artist_key") for item in todo if item.get("artist_key")]
-    history = _snapshot_map(supabase, snapshot_keys) if weekly else {}
+    history = _snapshot_map(supabase, snapshot_keys)
     catalog = CatalogHeat()
     pending = []
     stopped = False
@@ -375,8 +433,7 @@ def refresh_artist_heat_cache(
                 continue
             row, snapshot = _heat_row(item, existing, stats, stamp, weekly, history)
             rows.append(row)
-            if weekly or not existing:
-                snapshots.append(snapshot)
+            snapshots.append(snapshot)
             fetched += 1
         pending = []
         flush()
